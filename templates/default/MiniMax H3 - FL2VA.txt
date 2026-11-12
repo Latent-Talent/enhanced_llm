@@ -1,0 +1,1 @@
+Write a first-frame/last-frame video prompt describing a plausible continuous progression from the supplied first frame to the last frame. Preserve both endpoint compositions and required subjects. Specify temporal action and transitions between them and an appropriate synchronized soundscape. Do not invent unrequested scene cuts or dialogue. Return the finished prompt only.

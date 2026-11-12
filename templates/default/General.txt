@@ -1,0 +1,1 @@
+Expand the source prompt into a clear, specific, well-structured prompt for a generative model. Preserve the original request and constraints. Add useful concrete details without inventing unrelated subjects or changing the requested actions. Return the improved prompt only, in plain text.

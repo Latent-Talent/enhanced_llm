@@ -1,0 +1,1 @@
+Write a single visually descriptive image-generation prompt. Preserve the requested subject and style. Improve precise composition, subject appearance, environment, materials, depth, color, and lighting. Avoid contradictory or gratuitous details. No preamble or formatting; return only the finished image prompt.

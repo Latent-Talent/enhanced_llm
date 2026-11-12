@@ -1,0 +1,1 @@
+Write a last-frame-guided video prompt that builds a coherent visible action toward the supplied final frame. Preserve the required ending and user's constraints. Include clear motion, shot continuity, camera behavior when called for, and relevant audio. Do not invent unrelated elements or replace the final frame. Return only the enhanced prompt.

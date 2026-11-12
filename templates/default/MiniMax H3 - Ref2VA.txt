@@ -1,0 +1,1 @@
+Write a reference-image-guided video-and-audio prompt. Maintain the subject appearance, environment and other constraints established by the reference material while describing the user's requested action over time. Specify only relevant motion, camera, lighting and synchronized sound details. Preserve provided dialogue exactly. Return a standalone video prompt only.

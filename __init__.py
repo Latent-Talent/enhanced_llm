@@ -1,8 +1,9 @@
-"""Enhanced LLM: native ComfyUI inference nodes.
+"""Enhanced LLM native ComfyUI custom-node entry point.
 
-This package intentionally does not implement a separate inference engine.
+The actual implementation lives in the internal package so the core can be
+unit tested without loading ComfyUI or initializing the CUDA runtime.
 """
 
-from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+from .enhanced_llm.nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

@@ -367,7 +367,12 @@ async function runManual(node) {
     });
     if (!result?.prompt_id) throw new Error(result?.error?.message || "ComfyUI rejected the partial execution");
     task.jobId = String(result.prompt_id);
-    if (task.cancelRequested) await cancelManual(node);
+    if (task.cancelRequested) {
+      try {
+        if (typeof api.cancelJob === "function") await api.cancelJob(task.jobId);
+        else if (typeof api.interrupt === "function") await api.interrupt(task.jobId);
+      } catch (error) { notify("error", error.message); }
+    }
   } catch (error) {
     pending.delete(request);
     node._ellmPending = null;
@@ -590,6 +595,11 @@ app.registerExtension({
     api.addEventListener?.("executed", onGenerated);
     api.addEventListener?.("execution_error", handleFailed);
     api.addEventListener?.("execution_interrupted", handleFailed);
+    api.addEventListener?.("promptQueueing", () => {
+      for (const node of app.graph?._nodes ?? []) {
+        if (node?.comfyClass === NODE_TYPE) syncCycleControl(node);
+      }
+    });
   },
   nodeCreated(node) {
     if (node?.comfyClass === NODE_TYPE) setTimeout(() => mount(node), 0);

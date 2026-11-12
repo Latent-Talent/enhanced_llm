@@ -18,7 +18,7 @@ class TestPackageBootstrap(unittest.TestCase):
         self.addCleanup(sys.modules.pop, name, None)
         spec.loader.exec_module(module)
         self.assertIn("EnhancedLLMGenerate", module.NODE_CLASS_MAPPINGS)
-        self.assertEqual(len(module.NODE_CLASS_MAPPINGS), 5)
+        self.assertEqual(len(module.NODE_CLASS_MAPPINGS), 6)
 
 
 if __name__ == "__main__":

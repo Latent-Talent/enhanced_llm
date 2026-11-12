@@ -9,7 +9,7 @@ from enhanced_llm.runtime import ModelRef
 
 class TestNodes(unittest.TestCase):
     def test_node_registration(self):
-        self.assertEqual(len(NODE_CLASS_MAPPINGS), 5)
+        self.assertEqual(len(NODE_CLASS_MAPPINGS), 6)
         self.assertIn("EnhancedLLMGenerate", NODE_CLASS_MAPPINGS)
 
     def test_generation_return_contract(self):

@@ -188,7 +188,11 @@ class EnhancedLLMRelease:
                             "gpu_memory_owner": "ComfyUI ModelPatcher"}),)
 
 
+from .enhancer import EnhancedLLMPromptEnhancer
+
+
 NODE_CLASS_MAPPINGS = {
+    "EnhancedLLMPromptEnhancer": EnhancedLLMPromptEnhancer,
     "EnhancedLLMLoad": EnhancedLLMLoad,
     "EnhancedLLMFromCLIP": EnhancedLLMFromCLIP,
     "EnhancedLLMGenerate": EnhancedLLMGenerate,
@@ -197,6 +201,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "EnhancedLLMPromptEnhancer": "Enhanced LLM • Prompt Enhancer",
     "EnhancedLLMLoad": "Enhanced LLM • Load Native Model",
     "EnhancedLLMFromCLIP": "Enhanced LLM • Use Existing CLIP",
     "EnhancedLLMGenerate": "Enhanced LLM • Generate (Native MTP)",

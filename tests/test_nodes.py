@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from enhanced_llm import NODE_CLASS_MAPPINGS
+from enhanced_llm.nodes import NODE_CLASS_MAPPINGS
 from enhanced_llm.nodes import EnhancedLLMGenerate, EnhancedLLMRelease, EnhancedLLMStatus
 from enhanced_llm.runtime import ModelRef
 

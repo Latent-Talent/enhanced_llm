@@ -12,6 +12,7 @@ const NODE_TYPE = "EnhancedLLMPromptEnhancer";
 const API_ROOT = "/enhanced_llm/enhancer";
 const pending = new Map();
 const completed = new Set();
+const cancelled = new Set();
 const journal = new Map();
 
 const w = (node, name) => node?.widgets?.find(x => x.name === name) ?? null;
@@ -293,6 +294,7 @@ function onGenerated(e) {
   catch { return; }
   if (data?.mode === "stored" || !Array.isArray(data?.prompts)) return;
   const request = String(data.request || "");
+  if (request && cancelled.has(request)) { cancelled.delete(request); return; }
   const token = request || ("workflow:" + String(detail?.prompt_id || freshId())
     + ":" + String(data.node_id || ""));
   if (completed.has(token)) return;
@@ -301,8 +303,9 @@ function onGenerated(e) {
 
   const owner = request ? pending.get(request) : null;
   const live = findActiveNode(data.state_id, data.node_id);
-  const target = live || owner?.node;
-  if (target) addGenerated(target, data);
+  // Do not mutate a detached tab's stale graph object: queue the result for
+  // its next mount instead, preventing double application on tab restore.
+  if (live) addGenerated(live, data);
   if (!live && data.state_id) {
     const list = journal.get(data.state_id) ?? [];
     list.push(data);
@@ -322,6 +325,7 @@ async function cancelManual(node) {
   const state = node._ellmPending;
   if (!state) return;
   state.cancelRequested = true;
+  cancelled.add(state.request);
   if (state.jobId) {
     try {
       if (typeof api.cancelJob === "function") await api.cancelJob(state.jobId);
@@ -548,9 +552,9 @@ function mount(node) {
 function handleFailed(e) {
   const detail = e?.detail ?? e;
   const id = String(detail?.prompt_id || "");
-  if (!id) return;
+  if (!id && pending.size !== 1) return;
   for (const task of pending.values()) {
-    if (task.jobId !== id) continue;
+    if (id && task.jobId !== id) continue;
     pending.delete(task.request);
     task.node._ellmPending = null;
     setValue(task.node, "manual_request", "");

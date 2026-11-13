@@ -117,3 +117,8 @@ node --test tests/frontend/enhancer_state.test.mjs
 ```
 
 No real-GPU ComfyUI smoke test has been performed yet.
+
+
+### ComfyUI-style Prompt Enhancer controls (0.2.1-alpha)
+
+The Prompt Enhancer uses a compact, theme-aware in-node toolbar styled to match the modern ComfyUI interface, including the active light/dark palette. The main action is a prominent **Enhance** button (which changes to **Cancel** while a manual enhancement is queued). The panel retains previous/next prompt navigation, Undo/Redo, Prompt Sets, and template actions, while native ComfyUI input widgets retain their own appearance. This is a visual/UI update only; it does not require switching node renderers or running ComfyUI Nodes 2.0. A native **Enhance** button fallback is available on older frontends that do not support the embedded toolbar.

@@ -390,16 +390,26 @@ function refresh(node) {
   if (!panel) return;
   const list = history(node);
   const active = index(node);
+  const busy = Boolean(node._ellmPending);
+  const count = Number(value(node, "batch_count", 1)) || 1;
+
   panel.count.textContent = list.length ? (active + 1) + " / " + list.length : "0 / 0";
-  panel.run.textContent = node._ellmPending ? "Cancel Enhancement" : "Enhance Prompt";
-  panel.run.title = node._ellmPending ? "Cancel this queued/running partial execution" :
-    "Queue only the enhancer and its upstream model/media dependencies";
+  panel.run.textContent = busy ? "Cancel" : "Enhance";
+  panel.run.title = busy
+    ? "Cancel this queued or running enhancement"
+    : "Enhance using the native LLM, without running downstream image or video nodes";
+  panel.run.classList.toggle("ellm-cancel", busy);
+  panel.run.setAttribute("aria-busy", busy ? "true" : "false");
+  panel.state.textContent = busy ? "Generating" : "Ready";
+  panel.state.dataset.state = busy ? "running" : "idle";
   panel.undo.disabled = !(node._ellmUndo?.length);
   panel.redo.disabled = !(node._ellmRedo?.length);
   panel.prev.disabled = panel.next.disabled = panel.remove.disabled = !list.length;
   panel.promote.disabled = !String(value(node, "enhanced_prompt")).trim();
-  if (node._ellmPending) panel.status.textContent = "Queued / generating " +
-    value(node, "batch_count", 1) + " prompt(s)…";
+  if (busy) panel.status.textContent = "Queued / generating " + count + " prompt(s)";
+  else if (panel.status.textContent.startsWith("Queued / generating")) {
+    panel.status.textContent = "Ready to enhance";
+  }
 }
 
 function makeElement(tag, label, parent, click, cssClass = "") {
@@ -423,48 +433,78 @@ function buildPanel(node) {
   if (node._ellmPanel) return;
   const root = document.createElement("div");
   root.className = "ellm-enhancer-panel";
-  const rowA = makeElement("div", null, root, null, "ellm-row");
-  const run = panelButton(rowA, "Enhance Prompt", () => runManual(node));
+  root.setAttribute("aria-label", "Enhanced LLM prompt enhancer controls");
+  // Keep mouse interaction within the DOM widget without dragging the graph.
+  root.addEventListener("pointerdown", event => event.stopPropagation());
+  root.addEventListener("wheel", event => event.stopPropagation(), { passive: true });
+
+  const header = makeElement("div", null, root, null, "ellm-head");
+  const heading = makeElement("span", "PROMPT ENHANCER", header, null, "ellm-heading");
+  heading.title = "Native ComfyUI inference with prompt history and presets";
+  const state = makeElement("span", "Ready", header, null, "ellm-state");
+  state.dataset.state = "idle";
+
+  const rowA = makeElement("div", null, root, null, "ellm-actions");
+  const run = panelButton(rowA, "Enhance", () => runManual(node));
   run.classList.add("ellm-primary");
-  const promote = panelButton(rowA, "↑ Use Enhanced as Prompt", () => useEnhancedAsPrompt(node));
-  const rowB = makeElement("div", null, root, null, "ellm-row");
+  run.setAttribute("aria-label", "Enhance prompt");
+  run.title = "Queue prompt enhancement with the native ComfyUI LLM";
+  const promote = panelButton(rowA, "Use as Prompt", () => useEnhancedAsPrompt(node));
+  promote.title = "Replace source Prompt with the selected Enhanced Prompt";
+  promote.classList.add("ellm-secondary");
+
+  const historyHeader = makeElement("div", null, root, null, "ellm-history-header");
+  makeElement("span", "Enhanced prompts", historyHeader, null, "ellm-section-label");
+  const count = makeElement("span", "0 / 0", historyHeader, null, "ellm-counter");
+
+  const rowB = makeElement("div", null, root, null, "ellm-history-actions");
   const prev = panelButton(rowB, "←", () => choose(node, index(node) - 1));
-  const count = makeElement("span", "0 / 0", rowB, null, "ellm-counter");
+  prev.title = "Previous enhanced prompt";
   const next = panelButton(rowB, "→", () => choose(node, index(node) + 1));
+  next.title = "Next enhanced prompt";
   const remove = panelButton(rowB, "Delete", () => deleteActive(node));
   const undoBtn = panelButton(rowB, "Undo", () => undo(node));
   const redoBtn = panelButton(rowB, "Redo", () => undo(node, true));
   panelButton(rowB, "Clear", () => clearAll(node));
-  const rowC = makeElement("div", null, root, null, "ellm-row");
-  makeElement("span", "Template", rowC, null, "ellm-label");
+
+  const rowC = makeElement("div", null, root, null, "ellm-field");
+  const templateLabel = makeElement("label", "Template", rowC, null, "ellm-label");
   const template = makeElement("select", null, rowC);
+  template.setAttribute("aria-label", "Enhancement template");
+  templateLabel.title = "Instructions used by the native LLM when enhancing";
   template.addEventListener("change", () => selectTemplate(node, template.value));
-  panelButton(rowC, "Save", () => saveTemplate(node));
-  panelButton(rowC, "Delete", () => deleteTemplate(node));
-  const rowD = makeElement("div", null, root, null, "ellm-row");
-  makeElement("span", "Prompt Set", rowD, null, "ellm-label");
+  panelButton(rowC, "Save", () => saveTemplate(node)).title = "Save enhancement instructions";
+  panelButton(rowC, "Delete", () => deleteTemplate(node)).title = "Delete selected user template";
+
+  const rowD = makeElement("div", null, root, null, "ellm-field");
+  makeElement("label", "Prompt set", rowD, null, "ellm-label");
   const set = makeElement("select", null, rowD);
-  panelButton(rowD, "Save", () => saveSet(node));
-  panelButton(rowD, "Load", () => loadSet(node));
-  panelButton(rowD, "Delete", () => deleteSet(node));
-  const status = makeElement("div", "Ready", root, null, "ellm-status");
+  set.setAttribute("aria-label", "Saved prompt set");
+  panelButton(rowD, "Save", () => saveSet(node)).title = "Save current prompt history";
+  panelButton(rowD, "Load", () => loadSet(node)).title = "Load selected prompt set";
+  panelButton(rowD, "Delete", () => deleteSet(node)).title = "Delete selected prompt set";
+
+  const status = makeElement("div", "Ready to enhance", root, null, "ellm-status");
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+
   node._ellmPanel = {
-    root, run, count, promote, prev, next, remove, undo: undoBtn, redo: redoBtn,
-    template, set, status,
+    root, run, count, state, promote, prev, next, remove, undo: undoBtn,
+    redo: redoBtn, template, set, status,
   };
   if (typeof node.addDOMWidget === "function") {
     const widget = node.addDOMWidget("enhancer_controls", "enhancer_controls", root, {
       serialize: false, hideOnZoom: false, margin: 4,
       getValue: () => "", setValue: () => {},
-      getMinHeight: () => 214, getHeight: () => 214,
+      getMinHeight: () => 286, getHeight: () => 286,
     });
     widget.serialize = false;
     widget.options ??= {};
     widget.options.serialize = false;
-    node.size[0] = Math.max(node.size[0], 470);
+    if (Array.isArray(node.size)) node.size[0] = Math.max(node.size[0], 500);
   } else {
-    // Older frontends still offer the manual and history actions.
-    node.addWidget("button", "Enhance Prompt", null, () => runManual(node));
+    // A native button also provides a usable Enhance action on older frontends.
+    node.addWidget("button", "Enhance", null, () => runManual(node));
     node.addWidget("button", "Previous Enhanced Prompt", null, () => choose(node, index(node) - 1));
     node.addWidget("button", "Next Enhanced Prompt", null, () => choose(node, index(node) + 1));
   }
@@ -572,18 +612,52 @@ function injectStyles() {
   if (document.getElementById("ellm-enhancer-css")) return;
   const style = document.createElement("style");
   style.id = "ellm-enhancer-css";
+  // ComfyUI's current design-system tokens automatically track the user's
+  // chosen light/dark palette; do not use removed PrimeVue --p-* variables.
   style.textContent = [
-    ".ellm-enhancer-panel{width:100%;height:214px;box-sizing:border-box;overflow:auto;",
-    "padding:8px;display:flex;flex-direction:column;gap:7px;",
-    "font:12px system-ui;color:var(--fg-color,#ddd);background:var(--comfy-input-bg,#23232b);border-radius:7px}",
-    ".ellm-row{display:flex;align-items:center;gap:5px;min-height:31px;flex-wrap:wrap}",
-    ".ellm-row button,.ellm-row select{font:inherit;color:inherit;background:var(--bg-color,#363640);",
-    "border:1px solid var(--border-color,#555);border-radius:5px;padding:5px 7px;cursor:pointer}",
-    ".ellm-row button:hover{filter:brightness(1.13)}.ellm-row button:disabled{opacity:.45;cursor:default}",
-    ".ellm-row .ellm-primary{background:var(--p-button-primary-background,#405f91);font-weight:600}",
-    ".ellm-row select{min-width:130px;max-width:210px;flex:1}",
-    ".ellm-label{min-width:65px;font-weight:600}.ellm-counter{min-width:42px;text-align:center}",
-    ".ellm-status{opacity:.75;font-size:11px;min-height:18px}",
+    ".ellm-enhancer-panel{color:var(--foreground,#e8e8ea);background:var(--node,var(--background,#25252b));",
+    "font-family:Inter,system-ui,sans-serif;font-size:12px;line-height:1.4;",
+    "display:flex;flex-direction:column;gap:9px;padding:11px;width:100%;height:286px;",
+    "box-sizing:border-box;overflow:auto;border-radius:10px;border:1px solid var(--border,#464650);",
+    "scrollbar-width:thin;}",
+    ".ellm-enhancer-panel *{box-sizing:border-box;min-width:0;}",
+    ".ellm-head,.ellm-actions,.ellm-history-header,.ellm-history-actions,.ellm-field{",
+    "display:flex;align-items:center;gap:6px;width:100%;}",
+    ".ellm-head{justify-content:space-between;min-height:21px;}",
+    ".ellm-heading{font-size:10px;letter-spacing:.075em;color:var(--muted-foreground,#aaa);font-weight:650;}",
+    ".ellm-state{font-size:10px;border-radius:999px;color:var(--muted-foreground,#aaa);",
+    "background:var(--secondary,#34343b);padding:3px 8px;}",
+    ".ellm-state[data-state=running]{color:var(--foreground,#fff);background:var(--accent,#4b5367);}",
+    ".ellm-actions{min-height:35px;}",
+    ".ellm-enhancer-panel button,.ellm-enhancer-panel select{",
+    "font:inherit;color:var(--foreground,#eee);height:31px;min-width:0;",
+    "border-radius:8px;border:1px solid transparent;",
+    "background:var(--secondary,#35353d);padding:0 9px;cursor:pointer;",
+    "transition:background .13s ease,border-color .13s ease,opacity .13s ease;}",
+    ".ellm-enhancer-panel button:hover:not(:disabled){background:var(--accent,#484851);}",
+    ".ellm-enhancer-panel button:disabled{opacity:.42;cursor:default;}",
+    ".ellm-enhancer-panel button:focus-visible,.ellm-enhancer-panel select:focus-visible{",
+    "outline:2px solid var(--ring,var(--primary,#6584bc));outline-offset:1px;}",
+    ".ellm-enhancer-panel .ellm-primary{flex:1.5;font-size:13px;font-weight:650;",
+    "background:var(--primary,#466391);color:var(--foreground,#fff);}",
+    ".ellm-enhancer-panel .ellm-primary:hover:not(:disabled){filter:brightness(1.1);",
+    "background:var(--primary,#466391);}",
+    ".ellm-enhancer-panel .ellm-primary.ellm-cancel{background:var(--destructive,#a44949);}",
+    ".ellm-enhancer-panel .ellm-secondary{flex:1;}",
+    ".ellm-history-header{justify-content:space-between;min-height:17px;margin-top:1px;}",
+    ".ellm-section-label,.ellm-label{font-size:11px;color:var(--muted-foreground,#aaa);font-weight:550;}",
+    ".ellm-counter{font-size:11px;color:var(--muted-foreground,#aaa);font-variant-numeric:tabular-nums;}",
+    ".ellm-history-actions{gap:5px;}",
+    ".ellm-history-actions button{flex:1;padding:0 5px;}",
+    ".ellm-history-actions button:nth-child(-n+2){font-size:16px;font-weight:550;}",
+    ".ellm-field{min-height:31px;gap:5px;}",
+    ".ellm-field .ellm-label{flex:0 0 66px;}",
+    ".ellm-field select{flex:1;background:var(--secondary,#35353d);",
+    "border:1px solid var(--border,#464650);padding-right:3px;}",
+    ".ellm-field button{flex:0 0 auto;padding:0 7px;}",
+    ".ellm-status{min-height:16px;font-size:10px;color:var(--muted-foreground,#aaa);",
+    "white-space:normal;overflow-wrap:anywhere;}",
+    "@media (prefers-reduced-motion:reduce){.ellm-enhancer-panel button{transition:none;}}",
   ].join("");
   document.head.append(style);
 }

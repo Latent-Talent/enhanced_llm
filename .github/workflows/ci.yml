@@ -24,4 +24,4 @@ jobs:
       - name: Frontend module syntax
         run: node --check web/js/prompt_enhancer.js && node --check web/js/enhancer_state.mjs
       - name: Frontend state tests
-        run: node --test tests/frontend/enhancer_state.test.mjs
+        run: node --test tests/frontend/*.test.mjs

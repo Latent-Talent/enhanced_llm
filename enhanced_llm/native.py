@@ -9,6 +9,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from .precision import MATRIX_PRECISION_MODES, native_matrix_precision
+
 MTP_MODES = ("auto", "off", "2", "3", "4", "5", "tree2s1", "tree2s2", "tree3s1", "tree4s1m8")
 
 
@@ -152,6 +154,7 @@ def generate_native(
     audio: Any = None,
     max_tokens: int = 512,
     mtp: str = "auto",
+    matrix_precision: str = "native",
     do_sample: bool = True,
     temperature: float = 0.7,
     top_k: int = 64,
@@ -174,19 +177,20 @@ def generate_native(
 
     # ComfyUI owns dynamic VRAM loading, prefill, optimized kernels, MTP,
     # temporary KV/DeltaNet state, and normal memory reclamation.
-    generated_ids = clip.generate(
-        tokens,
-        do_sample=do_sample,
-        max_length=max_tokens,
-        temperature=temperature,
-        top_k=top_k,
-        top_p=top_p,
-        min_p=min_p,
-        repetition_penalty=repetition_penalty,
-        presence_penalty=presence_penalty,
-        seed=seed,
-        mtp=mode,
-    )
+    with native_matrix_precision(clip, matrix_precision) as precision_details:
+        generated_ids = clip.generate(
+            tokens,
+            do_sample=do_sample,
+            max_length=max_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            min_p=min_p,
+            repetition_penalty=repetition_penalty,
+            presence_penalty=presence_penalty,
+            seed=seed,
+            mtp=mode,
+        )
     generation_finished = time.perf_counter()
     decoded = clip.decode(generated_ids)
     answer, reasoning = split_reasoning(decoded, prompt, tokens, clip)
@@ -195,6 +199,7 @@ def generate_native(
 
     stats = {
         "engine": "comfy_native",
+        "matrix_precision": precision_details,
         "mtp_requested": mtp,
         "mtp_head_present": mtp_head_present(clip),
         "output_tokens": token_count,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .native import MTP_MODES, available_clip_types, generate_native, mtp_head_present, quantization_diagnostics
+from .native import MTP_MODES, MATRIX_PRECISION_MODES, available_clip_types, generate_native, mtp_head_present, quantization_diagnostics
 from .runtime import ModelRef, RUNTIME
 from .version import __version__
 
@@ -79,6 +79,8 @@ class EnhancedLLMGenerate:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
             "optional": {
+                "matrix_precision": (list(MATRIX_PRECISION_MODES), {"default": "native",
+                    "tooltip": "native uses ComfyUI optimized kernels; w4a16 keeps supported 4-bit weights packed, but uses BF16/FP16 matmul."}),
                 "system_prompt": ("STRING", {"default": "", "multiline": True}),
                 "thinking": ("BOOLEAN", {"default": False}),
                 "use_default_template": ("BOOLEAN", {"default": True}),
@@ -110,7 +112,7 @@ class EnhancedLLMGenerate:
         system_prompt="", thinking=False, use_default_template=True,
         temperature=0.7, top_k=64, top_p=0.95, min_p=0.05,
         repetition_penalty=1.05, presence_penalty=0.0,
-        image=None, video=None, audio=None,
+        image=None, video=None, audio=None, matrix_precision="native",
     ):
         if not isinstance(llm, ModelRef):
             raise TypeError("llm must come from Enhanced LLM Load or Enhanced LLM From CLIP.")
@@ -118,6 +120,7 @@ class EnhancedLLMGenerate:
         def execute(clip):
             return generate_native(
                 clip, prompt=prompt, max_tokens=max_tokens, mtp=mtp,
+                matrix_precision=matrix_precision,
                 do_sample=(sampling == "on"), seed=seed, system_prompt=system_prompt,
                 thinking=thinking, use_default_template=use_default_template,
                 temperature=temperature, top_k=top_k, top_p=top_p,

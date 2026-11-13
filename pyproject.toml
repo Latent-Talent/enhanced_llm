@@ -1,6 +1,6 @@
 [project]
 name = "enhanced-llm-comfyui"
-version = "0.2.1a0"
+version = "0.3.0a0"
 description = "Native ComfyUI LLM custom nodes with adaptive MTP and cooperative model caching"
 requires-python = ">=3.10"
 license = { text = "MIT" }

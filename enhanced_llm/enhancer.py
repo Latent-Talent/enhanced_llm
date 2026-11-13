@@ -11,7 +11,7 @@ from .enhancer_core import (
     parse_history, select_index,
 )
 from .enhancer_storage import templates
-from .native import MTP_MODES, generate_native
+from .native import MTP_MODES, MATRIX_PRECISION_MODES, generate_native
 from .runtime import ModelRef, RUNTIME
 
 
@@ -55,6 +55,8 @@ class EnhancedLLMPromptEnhancer:
                 "presence_penalty": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 5.0, "step": 0.01}),
                 "thinking": ("BOOLEAN", {"default": False}),
                 "state_id": ("STRING", {"default": "", "multiline": False, "dynamicPrompts": False}),
+                "matrix_precision": (list(MATRIX_PRECISION_MODES), {"default": "native",
+                    "tooltip": "Use native accelerated kernels, or request W4A16 BF16/FP16 matrix multiplication for supported packed 4-bit weights."}),
             },
             "hidden": {"unique_id": "UNIQUE_ID"},
         }
@@ -89,6 +91,7 @@ class EnhancedLLMPromptEnhancer:
         top_k: int = 64, top_p: float = 0.95, min_p: float = 0.05,
         repetition_penalty: float = 1.05, presence_penalty: float = 0.0,
         thinking: bool = False, state_id: str = "", unique_id=None,
+        matrix_precision: str = "native",
     ):
         if not isinstance(llm, ModelRef):
             raise TypeError("Connect an Enhanced LLM native model or From CLIP node.")
@@ -129,6 +132,7 @@ class EnhancedLLMPromptEnhancer:
                     thinking=thinking,
                     max_tokens=max_tokens,
                     mtp=mtp,
+                    matrix_precision=matrix_precision,
                     do_sample=True,
                     temperature=temperature,
                     top_k=top_k,
@@ -149,7 +153,8 @@ class EnhancedLLMPromptEnhancer:
         (generated, timings), reused = RUNTIME.run(llm, operation)
         RUNTIME.remember({
             "operation": "prompt_enhance", "mode": mode, "batch_count": count,
-            "mtp_requested": mtp, "total_seconds": round(time.perf_counter() - start, 4),
+            "mtp_requested": mtp, "matrix_precision_requested": matrix_precision,
+            "total_seconds": round(time.perf_counter() - start, 4),
             "model_reference_reused": reused,
         })
         updated, updated_index = apply_generated(
@@ -167,6 +172,7 @@ class EnhancedLLMPromptEnhancer:
             "overwrite": bool(overwrite_enhanced and count == 1),
             "model_reference_reused": reused,
             "mtp_requested": mtp,
+            "matrix_precision_requested": matrix_precision,
             "generation_seconds": [round(x, 4) for x in timings],
         }
         return {

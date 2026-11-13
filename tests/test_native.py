@@ -40,6 +40,7 @@ class TestNative(unittest.TestCase):
         self.assertIs(clip.params["mtp"], True)
         self.assertEqual(clip.params["seed"], 19)
         self.assertEqual(stats["output_tokens"], 3)
+        self.assertEqual(stats["matrix_precision"]["mode"], "native")
         self.assertEqual(stats["quantization"]["format_selection"], "native_auto")
 
     def test_reasoning_split(self):

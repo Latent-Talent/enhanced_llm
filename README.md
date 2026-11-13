@@ -2,7 +2,7 @@
 
 A clean-sheet custom-node package for ComfyUI's **native** LLM engine. No llama.cpp server, GGUF runtime, privately allocated GPU memory, or copied inference kernels.
 
-**Version: 0.1.0-alpha.** The initial release provides native loading, serialized inference, adaptive MTP controls, cooperative model reference caching, image/video/audio inputs, and diagnostics.
+**Version: 0.3.0-alpha.** The initial release provides native loading, serialized inference, adaptive MTP controls, cooperative model reference caching, image/video/audio inputs, and diagnostics.
 
 ## Requirements
 
@@ -54,7 +54,7 @@ Enhanced LLM holds a configurable LRU cache of Python model references to avoid 
 
 Generation is serialized with an in-process lock. The output statistics are recorded after generation; the status node intentionally does not query GPU memory during decoding, avoiding dynamic-VRAM interactions.
 
-**Current limitations:** True persistent KV/DeltaNet state, prefix caching, model pinning/VRAM preference policies, per-token MTP acceptance telemetry, an OpenAI API, prompt enhancement presets, streaming, priority preemption, and a custom frontend are not implemented in v0.1. Their implementation depends on stable native ComfyUI interfaces. The upstream state/prefix-cache proposals remain under review.
+**Current limitations:** True persistent KV/DeltaNet state, prefix caching, model pinning/VRAM preference policies, per-token MTP acceptance telemetry, an OpenAI API, streaming and priority preemption are not implemented in v0.3. Their implementation depends on stable native ComfyUI interfaces. The upstream state/prefix-cache proposals remain under review.
 
 ## Nodes
 
@@ -122,3 +122,19 @@ No real-GPU ComfyUI smoke test has been performed yet.
 ### ComfyUI-style Prompt Enhancer controls (0.2.1-alpha)
 
 The Prompt Enhancer uses a compact, theme-aware in-node toolbar styled to match the modern ComfyUI interface, including the active light/dark palette. The main action is a prominent **Enhance** button (which changes to **Cancel** while a manual enhancement is queued). The panel retains previous/next prompt navigation, Undo/Redo, Prompt Sets, and template actions, while native ComfyUI input widgets retain their own appearance. This is a visual/UI update only; it does not require switching node renderers or running ComfyUI Nodes 2.0. A native **Enhance** button fallback is available on older frontends that do not support the embedded toolbar.
+
+
+### Native W4A16 execution (0.3.0-alpha)
+
+The **Generate (Native MTP)** and **Prompt Enhancer** nodes have an optional **matrix_precision** selector:
+
+- **native (default):** the installed ComfyUI engine chooses its normal optimized quantized kernels (including W4A4, W4A8, NVFP4, etc. when available).
+- **w4a16:** preserve the existing packed 4-bit weight storage, but use ComfyUI's own **full-precision BF16/FP16 matrix multiplication** for native 4-bit quantized linear layers. This avoids low-bit activation quantization for those layers; other layers keep their native compute path.
+
+W4A16 does **not** expand all model weights into BF16/FP16 storage. Individual matmul operations may temporarily dequantize weights, consuming additional workspace/VRAM and often running slower than optimized A4/A8 kernels. MTP remains controlled by the native engine, though speed may differ. The implementation changes only temporary native per-layer compute flags; it restores the previous state after every request, including on errors.
+
+**Checkpoint compatibility remains ComfyUI-owned.** The optional W4A16 execution path is not a new AWQ/GPTQ/NF4/GGUF checkpoint loader and does not convert other file formats. The node checks the *actual loaded native module metadata*, never the filename. If no compatible 4-bit native layers exist, or activation compute is not BF16/FP16, it explains the incompatibility rather than silently pretending W4A16 was applied.
+
+Look at the generated **info_json → matrix_precision** for the applied layer count, formats and native activation dtype. For W4A16, compare the same seed and MTP setting against native mode to decide whether the tradeoff is worthwhile.
+
+References: ComfyUI's `QUANTIZATION.md` and native `comfy.ops.MixedPrecisionOp` / `use_quantized_matmul` API. The W4A16 option is a compute preference, not a restriction on supported input quantization formats.

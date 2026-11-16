@@ -29,6 +29,7 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 - Original prompt and Enhance Prompt count/action, with `x/y` progress displayed directly on the button and no persistent status footer. The button becomes **Cancel** while enhancements remain; cancellation targets only the active batch and leaves already queued full runs intact.
 - **Queue Run for Each**: a visible on/off switch directly beneath Enhance Prompt; off by default. Exactly one full workflow per successful enhancement when enabled; never for failed enhancements.
 - Enhanced prompt textarea, browsing, removal, undo/redo and clear. Resizing any visible textarea also adjusts the node height, and field heights are saved with the workflow.
+- **Completed LLM queue titles:** Enhancement-only jobs publish a genuine inline text preview labeled `LLM Enhanced 1/5`, `LLM Enhanced 2/5`, etc., instead of the generic `Job #xx`. This uses ComfyUI's native Jobs API and the text preview's display filename, without writing files or changing ComfyUI's queue components. Clicking **View** opens the generated enhanced text. Full workflow executions do not receive this text label and continue showing their real generated filenames.
 - Prompt sets: save/rename, create, select, delete; stored in the ComfyUI workflow JSON.
 - Prompt cycle: fixed, increment, decrement, shuffle and random.
 - Shuffle and Random choose randomness automatically in the background. Shuffle visits every prompt once per shuffled cycle; the native LLM seed remains a separate generation control.

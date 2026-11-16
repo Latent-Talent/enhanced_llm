@@ -50,6 +50,7 @@ sys.modules["comfy_extras.nodes_textgen"] = native
 
 queue_stub = types.ModuleType("eml_test.queue_service")
 queue_stub.finish_job = mock.Mock()
+queue_stub.enhancement_title = mock.Mock(return_value="LLM Enhanced 1/5")
 sys.modules["eml_test.queue_service"] = queue_stub
 
 spec = importlib.util.spec_from_file_location("eml_test.nodes", ROOT / "nodes.py")
@@ -90,6 +91,13 @@ def test_native_generation_sends_result_to_queue_service():
     )
     assert result.args == ("new text", "reasoning")
     assert result.ui["enhanced_llm"][0]["job_id"] == "job-123"
+    assert result.ui["text"] == [{
+        "filename": "LLM Enhanced 1/5",
+        "filenameIsDisplayName": True,
+        "content": "new text",
+    }]
+    assert result.ui["text"][0].get("type") is None  # not a real saved file
+    queue_stub.enhancement_title.assert_called_once_with("job-123")
     queue_stub.finish_job.assert_called_once_with("job-123", "new text", "reasoning")
 
 
@@ -157,3 +165,22 @@ def test_optional_jailbreak_prefix_precedes_preset_only_during_enhancement():
     )
     assert result.args[0] == "stored"
     assert len(calls) == calls_before
+
+
+def test_pass_through_does_not_advertise_an_llm_completion_title():
+    result = module.EnhancedGenerateText.execute(
+        prompt="source", enhanced_prompt="finished prompt", ui_action="pass",
+    )
+    assert result.args[0] == "finished prompt"
+    assert not result.ui
+
+
+def test_ui_text_preview_uses_inline_content_without_creating_a_file():
+    module.TextGenerateV2.execute = lambda **kw: NodeOutput("fully enhanced prompt", "")
+    result = module.EnhancedGenerateText.execute(
+        clip=object(), prompt="draft", enhancement_text="improve",
+        ui_action="enhance",
+    )
+    assert result.ui["text"][0]["content"] == "fully enhanced prompt"
+    assert result.ui["text"][0]["filenameIsDisplayName"] is True
+    assert not result.ui["text"][0]["filename"].endswith(".txt")

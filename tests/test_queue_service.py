@@ -227,3 +227,18 @@ def test_server_follow_up_submission_has_native_jobs_metadata():
     workflow["id"] = "modified-after-queue"
     assert item[3]["extra_pnginfo"]["workflow"]["id"] == "workflow-xyz"
     assert item[4] == ["20"]
+
+
+def test_enhancement_titles_include_batch_position_without_filesystem_changes():
+    batch = service.reserve_batch("10", 5, False, template(), None, "client")
+    try:
+        assert [service.enhancement_title(job_id) for job_id in batch.jobs] == [
+            "LLM Enhanced 1/5", "LLM Enhanced 2/5",
+            "LLM Enhanced 3/5", "LLM Enhanced 4/5",
+            "LLM Enhanced 5/5",
+        ]
+        assert service.enhancement_title("unknown-job") == "LLM Enhanced"
+    finally:
+        for job_id in batch.jobs:
+            service.JOBS.pop(job_id, None)
+        service.BATCHES.pop(batch.id, None)

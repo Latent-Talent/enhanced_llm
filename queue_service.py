@@ -185,6 +185,20 @@ async def _complete(job_id: str, result: str, reasoning: str):
         }, batch.client_id)
 
 
+def enhancement_title(job_id: str) -> str:
+    """Short, stable title for a successful enhancement in ComfyUI Jobs.
+
+    /api/jobs uses a text preview's filename as its completed-row label.
+    Its text content remains inline and does not require creating a file.
+    """
+    with LOCK:
+        job = JOBS.get(job_id)
+        batch = BATCHES.get(job.batch_id) if job else None
+        if job is None or batch is None:
+            return "LLM Enhanced"
+        return f"LLM Enhanced {job.index + 1}/{len(batch.jobs)}"
+
+
 def finish_job(job_id: str, text: str, thinking: str):
     """Called by the executing node, not by its browser UI."""
     with LOCK:

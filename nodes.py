@@ -6,7 +6,7 @@ already-generated prompt without re-loading the LLM's upstream model path.
 from comfy_api.latest import io
 from comfy_extras.nodes_textgen import TextGenerateV2
 
-from .queue_service import finish_job
+from .queue_service import enhancement_title, finish_job
 
 NODE_ID = "LatentTalentEnhancedGenerateText"
 
@@ -110,9 +110,21 @@ class EnhancedGenerateText(io.ComfyNode):
         return io.NodeOutput(
             result,
             reasoning,
-            ui={"enhanced_llm": [{
-                "job_id": enhancement_job_id,
-                "text": result,
-                "thinking": reasoning,
-            }]},
+            ui={
+                "enhanced_llm": [{
+                    "job_id": enhancement_job_id,
+                    "text": result,
+                    "thinking": reasoning,
+                }],
+                # ComfyUI's /api/jobs uses the inline text preview's filename
+                # as the completed job label. Supplying 'content' allows View
+                # to show the prompt without saving a fictitious file.
+                # This UI metadata is emitted ONLY on enhancement executions;
+                # normal workflow runs retain their own output filenames.
+                "text": [{
+                    "filename": enhancement_title(enhancement_job_id),
+                    "filenameIsDisplayName": True,
+                    "content": result,
+                }],
+            },
         )

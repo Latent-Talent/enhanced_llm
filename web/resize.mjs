@@ -58,9 +58,9 @@ export function createTextareaResizeController(node) {
     const width = Number(node.size?.[0]) || 565;
     const before = Number(node.size?.[1]) || 880;
     const required = Number(node.computeSize?.()?.[1]) || 0;
-    const height = Math.max(required, before + delta);
-    if (Number.isFinite(height) && Math.abs(height - before) >= 0.5) {
-      node.setSize?.([width, height]);
+    const nextNodeHeight = Math.max(required, before + delta);
+    if (Number.isFinite(nextNodeHeight) && Math.abs(nextNodeHeight - before) >= 0.5) {
+      node.setSize?.([width, nextNodeHeight]);
     }
     node.setDirtyCanvas?.(true, true);
     return true;

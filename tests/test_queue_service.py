@@ -122,6 +122,13 @@ def test_completing_one_job_queues_exactly_one_full_run():
         asyncio.run(service._complete(job_id, "enhanced text", ""))
         asyncio.run(service._complete(job_id, "enhanced text", ""))
     assert len(fake_server.prompt_queue.items) == 1
+    queued = fake_server.prompt_queue.items[0]
+    # The Jobs API sorts by extra_data.create_time. Without it, a follow-up
+    # run is pushed behind older history in the queue overlay even while
+    # ComfyUI counts it as active.
+    assert isinstance(queued[3]["create_time"], int)
+    assert queued[3]["create_time"] > 1_600_000_000_000
+    assert queued[3]["client_id"] == "client"
     assert service.JOBS[job_id].state == "full_queued"
     service.JOBS.pop(job_id)
     service.BATCHES.pop(batch_id)
@@ -198,3 +205,25 @@ def test_cancelling_while_full_run_validates_prevents_late_submission():
     assert fake_server.prompt_queue.items == []
     service.JOBS.pop(job_id)
     service.BATCHES.pop(batch_id)
+
+
+def test_server_follow_up_submission_has_native_jobs_metadata():
+    class Queue:
+        def __init__(self):
+            self.items = []
+        def put(self, item):
+            self.items.append(item)
+
+    server = types.SimpleNamespace(number=45, prompt_queue=Queue())
+    workflow = {"id": "workflow-xyz", "nodes": []}
+    with mock.patch.object(service.time, "time", return_value=1795000000.25):
+        service._put(server, "new-job-id", template(), ["20"], "client-123", workflow)
+    assert server.number == 46
+    item = server.prompt_queue.items[0]
+    assert item[1] == "new-job-id"
+    assert item[3]["create_time"] == 1795000000250
+    assert item[3]["client_id"] == "client-123"
+    assert item[3]["extra_pnginfo"]["workflow"] == workflow
+    workflow["id"] = "modified-after-queue"
+    assert item[3]["extra_pnginfo"]["workflow"]["id"] == "workflow-xyz"
+    assert item[4] == ["20"]

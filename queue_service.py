@@ -74,6 +74,10 @@ def _put(server, prompt_id, graph, targets, client_id, workflow):
         extra["client_id"] = client_id
     if workflow is not None:
         extra["extra_pnginfo"] = {"workflow": copy.deepcopy(workflow)}
+    # ComfyUI's /api/jobs reads create_time from queued prompt extra_data.
+    # Native /prompt adds this before enqueueing; direct follow-up submissions
+    # must do the same or the jobs endpoint can fail while sorting timestamps.
+    extra["create_time"] = int(time.time() * 1000)
     server.prompt_queue.put((
         _number(server), prompt_id, graph, extra, targets, {}
     ))

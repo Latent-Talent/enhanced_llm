@@ -61,6 +61,9 @@ The Enhance button first reserves unique job IDs and an immutable full-workflow 
 
 A successful result is saved and, if Queue Run for Each is enabled, triggers validation and submission of one full-workflow snapshot with that exact text. Unsubmitted reservations are closed after the frontend queue operation completes.
 
+Automatically queued full runs include ComfyUI's native `create_time` (milliseconds since epoch), client ID and workflow metadata in the prompt's extra data. This is required for the modern `/api/jobs` list to sort these runs alongside native submissions rather than placing them behind older completed jobs while still counting them as active.
+
+
 The queued full workflow disconnects the LLM-only upstream links (CLIP, multimodal inputs and system prompt) from the pass-through enhancer, reducing unnecessary model loading. Each enhancement job can only trigger its associated full run once, even on repeated completion signals.
 
 The server-side coordinator stays alive while ComfyUI is running and does not require an open browser to enqueue full runs. Pending jobs do not survive a ComfyUI server restart, consistent with ComfyUI's in-memory execution queue.

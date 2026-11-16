@@ -1,0 +1,9 @@
+[project]
+name = "comfyui-enhanced-llm"
+version = "0.1.0"
+description = "Native ComfyUI Generate Text with prompt enhancement and linked workflow queuing"
+requires-python = ">=3.10"
+dependencies = ["aiohttp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

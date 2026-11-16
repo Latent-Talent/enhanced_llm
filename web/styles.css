@@ -1,0 +1,71 @@
+/* Scoped to the node; leave ComfyUI's native widgets and other custom nodes alone. */
+.eml-panel {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 5px 6px;
+  color: var(--fg-color, #ddd);
+  font: 12px/1.35 system-ui, sans-serif;
+}
+.eml-panel textarea, .eml-panel input, .eml-panel select, .eml-panel button {
+  font: inherit;
+  color: var(--input-text, #eee);
+  box-sizing: border-box;
+}
+.eml-panel textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  background: var(--comfy-input-bg, #232323);
+  border: 1px solid var(--border-color, #505050);
+  border-radius: 6px;
+  padding: 9px 10px;
+  outline-offset: -2px;
+}
+.eml-panel textarea:focus-visible, .eml-panel select:focus-visible,
+.eml-panel button:focus-visible, .eml-panel input:focus-visible {
+  outline: 2px solid var(--p-primary-color, #78a9e8);
+}
+.eml-panel textarea::placeholder {color:#8c8c8c;}
+.eml-row {display:flex;gap:5px;align-items:center;min-height:29px;}
+.eml-row button {
+  background:#3d3d3d;
+  border:1px solid #505050;
+  border-radius:5px;
+  min-height:27px;
+  padding:2px 9px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.eml-row button:hover:not(:disabled){background:#4a4a4a;}
+.eml-row button:disabled{opacity:.43;cursor:default;}
+.eml-row button.eml-primary {background:#2d9e48;color:#fff;border-color:#2d9e48;font-weight:700;flex:1;min-width:90px;}
+.eml-row button.eml-primary:hover:not(:disabled){background:#38b458;}
+.eml-row select,.eml-row input {
+  min-width:0;
+  flex:1;
+  background:#23272d;
+  border:1px solid #4b515b;
+  border-radius:5px;
+  min-height:28px;
+  padding:2px 7px;
+}
+.eml-row label {width:114px;flex:none;font-weight:600;}
+.eml-counter {display:flex;align-items:center;gap:4px;color:#bfbfbf;white-space:nowrap;}
+.eml-counter span {min-width:31px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;}
+.eml-toolbar {justify-content:space-between;}
+.eml-toolbar .eml-primary {margin-right:5px;}
+.eml-toolbar .eml-counter {background:#292929;border:1px solid #454545;border-radius:5px;padding:0 3px;}
+.eml-toolbar .eml-counter button{background:transparent;border:0;min-height:22px;padding:0 5px;}
+.eml-tag {font-size:10px;color:#aaa;}
+.eml-toggle {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0;}
+.eml-toggle label{font-weight:600;cursor:pointer;}
+.eml-toggle input{width:16px;height:16px;accent-color:#329e4b;}
+.eml-status {min-height:16px;font-size:11px;color:#b4bdc5;overflow-wrap:anywhere;}
+.eml-rename[hidden]{display:none;}
+.eml-panel .eml-rename input{min-width:70px;}
+.eml-divider{height:1px;background:#444;margin:1px 0;}

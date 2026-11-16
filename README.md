@@ -32,13 +32,26 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 - Prompt sets: save/rename, create, select, delete; stored in the ComfyUI workflow JSON.
 - Prompt cycle: fixed, increment, decrement, shuffle and random.
 - Shuffle and Random choose randomness automatically in the background. Shuffle visits every prompt once per shuffled cycle; the native LLM seed remains a separate generation control.
-- Enhancement presets: three protected defaults plus editable/savable user presets.
+- Enhancement presets: 19 protected defaults grouped by Krea 2, MiniMax H3, and MOSS-Image, plus editable/savable user presets.
+- The redundant native `system_prompt` input is removed: the Enhancement Preset text is the sole system prompt used for enhancement.
+- The native sampling `seed` widget remains available. An optional `llm_seed` INT socket overrides it when connected; the requested enhancement batch advances the effective LLM seed for distinct samples. Prompt Cycle Random/Shuffle use independent automatic randomness.
 
 ### Factory presets
 
-- Default / Krea 2 - Image
-- Default / MiniMax H3 - Video
-- Default / MOSS - Video
+These are model/task-specific enhancement instructions, not separate image/video model settings.
+
+**Krea 2 (7):** General; Photo; Anime; Illustration/Painting; 3D Render; Product Photography; Typography/Graphic Design.
+
+**MOSS-Image (7):** General; Photo; Anime; Illustration/Concept Art; 3D/CGI; Product/Commercial; Typography/Design. MOSS-Image is an image model, not a video model. The natural-language graphic prompt is preferred unless the user explicitly supplies a structured model-facing layout specification.
+
+**MiniMax H3 (5):** Text to Video (T2VA); First Frame (I2VA); First / Last Frame (FL2VA); Last Frame (L2VA); Reference (Ref2VA). The H3 presets include the correct mode-specific alignment instructions, image/audio reference labels and section structures.
+
+The original preset IDs `default:krea2`, `default:moss`, and `default:h3` are preserved for previously saved workflows.
+
+Official developer guidance used to design the prompts:
+- [Krea 2 prompting](https://github.com/krea-ai/krea-2/blob/main/docs/prompting.md) and [prompt expansion](https://github.com/krea-ai/krea-2/blob/main/docs/expansion.txt)
+- [MOSS-Image prompting and layout](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE.md)
+- [MiniMax H3 prompt-writing modes](https://github.com/MiniMax-AI/MiniMax-H3/blob/main/skills/h3-prompt-writing/SKILL.md) and [reference format](https://github.com/MiniMax-AI/MiniMax-H3/blob/main/skills/h3-prompt-writing/references/ref-en.txt)
 
 Factory defaults cannot be overwritten or deleted. To customize one, edit its instructions and use Save As to make a new user preset. User presets use ComfyUI's per-user data API.
 

@@ -17,7 +17,17 @@ class NodeOutput:
         self.ui = ui
 
 
-fake_io = types.SimpleNamespace(ComfyNode=object, NodeOutput=NodeOutput)
+def input_factory(type_name):
+    return types.SimpleNamespace(Input=lambda id, **opts: types.SimpleNamespace(
+        id=id, kind=type_name, **opts))
+
+fake_io = types.SimpleNamespace(
+    ComfyNode=object, NodeOutput=NodeOutput,
+    Int=input_factory("INT"), String=input_factory("STRING"),
+    Clip=input_factory("CLIP"), Combo=input_factory("COMBO"),
+    Boolean=input_factory("BOOLEAN"),
+    Schema=lambda **kwargs: types.SimpleNamespace(**kwargs),
+)
 sys.modules["comfy_api"] = types.ModuleType("comfy_api")
 api = types.ModuleType("comfy_api.latest")
 api.io = fake_io
@@ -25,7 +35,14 @@ sys.modules["comfy_api.latest"] = api
 
 sys.modules["comfy_extras"] = types.ModuleType("comfy_extras")
 native = types.ModuleType("comfy_extras.nodes_textgen")
-native.TextGenerateV2 = type("TextGenerateV2", (), {"execute": lambda **kw: None})
+native.TextGenerateV2 = type("TextGenerateV2", (), {
+    "execute": lambda **kw: None,
+    "define_schema": classmethod(lambda cls: types.SimpleNamespace(inputs=[
+        types.SimpleNamespace(id=k) for k in (
+            "clip", "prompt", "system_prompt", "max_length", "sampling_mode", "thinking", "mtp"
+        )
+    ]))
+})
 sys.modules["comfy_extras.nodes_textgen"] = native
 
 queue_stub = types.ModuleType("eml_test.queue_service")
@@ -71,3 +88,38 @@ def test_native_generation_sends_result_to_queue_service():
     assert result.args == ("new text", "reasoning")
     assert result.ui["enhanced_llm"][0]["job_id"] == "job-123"
     queue_stub.finish_job.assert_called_once_with("job-123", "new text", "reasoning")
+
+
+def test_schema_hides_duplicate_system_prompt_and_adds_llm_seed_socket():
+    schema = module.EnhancedGenerateText.define_schema()
+    ids = [field.id for field in schema.inputs]
+    assert "system_prompt" not in ids
+    assert "enhancement_text" in ids
+    assert "llm_seed" in ids
+    assert "enhancement_index" in ids
+    seed_input = next(field for field in schema.inputs if field.id == "llm_seed")
+    assert seed_input.force_input is True
+    assert seed_input.optional is True
+
+
+def test_optional_llm_seed_overrides_native_seed_without_mutating_widget():
+    calls = []
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return NodeOutput("revised", "")
+    module.TextGenerateV2.execute = fake_generate
+    original = {"sampling_mode":"on", "seed":5}
+    result = module.EnhancedGenerateText.execute(
+        clip=object(), prompt="original", enhancement_text="expand",
+        ui_action="enhance", sampling_mode=original,
+        llm_seed=987, enhancement_index=3,
+    )
+    assert result.args[0] == "revised"
+    assert calls[-1]["sampling_mode"]["seed"] == 990
+    assert original["seed"] == 5
+
+    module.EnhancedGenerateText.execute(
+        clip=object(), prompt="original", enhancement_text="expand",
+        ui_action="enhance", sampling_mode=original,
+    )
+    assert calls[-1]["sampling_mode"]["seed"] == 5

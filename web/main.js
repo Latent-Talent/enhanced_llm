@@ -187,7 +187,22 @@ function attach(node) {
   function renderPresets(){
     const id=get(node,"enhancement_preset_id")||DEFAULT_PRESETS[0].id;
     at("presets").replaceChildren();
-    for(const p of [...DEFAULT_PRESETS,...userPresets])at("presets").add(mkOption(p.name,p.id));
+    const families=[
+      ["Krea 2",p=>p.id.startsWith("default:krea2")],
+      ["MiniMax H3",p=>p.id.startsWith("default:h3")],
+      ["MOSS-Image",p=>p.id.startsWith("default:moss")],
+    ];
+    for(const [label,matches] of families){
+      const group=document.createElement("optgroup");
+      group.label=label+" · Default (read-only)";
+      for(const p of DEFAULT_PRESETS.filter(matches))group.appendChild(mkOption(p.name,p.id));
+      at("presets").appendChild(group);
+    }
+    if(userPresets.length){
+      const group=document.createElement("optgroup");group.label="User Presets";
+      for(const p of userPresets)group.appendChild(mkOption(p.name,p.id));
+      at("presets").appendChild(group);
+    }
     selectPreset(id,false);
   }
   const showRename=kind=>{
@@ -364,7 +379,7 @@ function attach(node) {
   node.__emlPanel=panel;
   for(const id of ["prompt","enhanced_prompt","enhanced_thinking","enhancement_text",
     "enhancement_preset_id","prompt_sets_json","prompt_cycle","cycle_seed",
-    "queue_run_for_each","ui_action","enhancement_job_id"]){
+    "queue_run_for_each","ui_action","enhancement_job_id","enhancement_index"]){
     const w=ownWidget(node,id);if(w)w.hidden=true;
   }
   const dom=node.addDOMWidget("enhanced_llm_panel","div",root,{

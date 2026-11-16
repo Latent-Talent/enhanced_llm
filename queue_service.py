@@ -83,6 +83,7 @@ def _seeded_copy(template: dict, node_id: str, job_id: str, index: int):
     inputs = prompt[node_id]["inputs"]
     inputs["ui_action"] = "enhance"
     inputs["enhancement_job_id"] = job_id
+    inputs["enhancement_index"] = index
     # Deterministic, distinct sampling seeds for each enhancement request,
     # without modifying the user's native sampling settings.
     sampling = inputs.get("sampling_mode")

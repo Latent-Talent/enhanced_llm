@@ -17,6 +17,9 @@ class EnhancedGenerateText(io.ComfyNode):
         native = TextGenerateV2.define_schema()
         inputs = []
         for item in native.inputs:
+            if item.id == "system_prompt":
+                # enhancement_text is the node's only system prompt input.
+                continue
             if item.id == "clip":
                 inputs.append(io.Clip.Input("clip", optional=True))
             else:
@@ -26,6 +29,10 @@ class EnhancedGenerateText(io.ComfyNode):
                     io.String.Input("enhanced_prompt", multiline=True, default=""),
                     io.String.Input("enhanced_thinking", multiline=True, default=""),
                     io.String.Input("enhancement_text", multiline=True, default=""),
+                    io.Int.Input("llm_seed", optional=True, force_input=True,
+                                 min=0, max=0xffffffffffffffff,
+                                 tooltip="Optional INT socket overriding the native sampling seed for LLM generation."),
+                    io.Int.Input("enhancement_index", default=0, min=0, max=31),
                     io.String.Input("enhancement_preset_id", default="default:krea2"),
                     io.String.Input("prompt_sets_json", multiline=True,
                                     default='{"version":1,"sets":[{"name":"Unsaved","items":[],"step":0}],"active":0,"index":0}'),
@@ -57,8 +64,9 @@ class EnhancedGenerateText(io.ComfyNode):
                 enhancement_preset_id="default:krea2", prompt_sets_json="",
                 prompt_cycle="fixed", cycle_seed=0, queue_run_for_each=False,
                 ui_action="pass", enhancement_job_id="",
+                llm_seed=None, enhancement_index=0,
                 thinking=False, use_default_template=True,
-                mtp="auto", system_prompt="", images=None, videos=None, audios=None,
+                mtp="auto", images=None, videos=None, audios=None,
                 **_extra) -> io.NodeOutput:
         if ui_action != "enhance":
             # Normal workflow execution never invokes clip.generate().
@@ -72,11 +80,17 @@ class EnhancedGenerateText(io.ComfyNode):
         if not instructions:
             raise ValueError("Select or enter a nonempty enhancement system prompt.")
 
+        sampling = dict(sampling_mode or {"sampling_mode": "on"})
+        if llm_seed is not None:
+            # Separate LLM seed input; never use the prompt-cycle random seed.
+            # Batch jobs increment the connected seed without changing the source node.
+            sampling["seed"] = (int(llm_seed) + int(enhancement_index)) % (1 << 64)
+
         generated = TextGenerateV2.execute(
             clip=clip,
             prompt=prompt,
             max_length=max_length,
-            sampling_mode=sampling_mode or {"sampling_mode": "on"},
+            sampling_mode=sampling,
             thinking=thinking,
             use_default_template=True,  # a system prompt requires a chat template
             mtp=mtp,

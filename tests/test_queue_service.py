@@ -38,6 +38,8 @@ def test_enhancement_jobs_are_immutable_and_seeded():
     assert first["10"]["inputs"]["sampling_mode"]["seed"] == 120
     assert second["10"]["inputs"]["sampling_mode"]["seed"] == 121
     assert first["10"]["inputs"]["enhancement_job_id"] == "one"
+    assert first["10"]["inputs"]["enhancement_index"] == 0
+    assert second["10"]["inputs"]["enhancement_index"] == 1
     assert raw["10"]["inputs"]["ui_action"] == "pass"
     assert raw["10"]["inputs"]["sampling_mode"]["seed"] == 120
 

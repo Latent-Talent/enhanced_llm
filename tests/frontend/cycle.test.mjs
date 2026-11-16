@@ -24,7 +24,14 @@ test("fixed increment decrement and empty",()=>{
   assert.equal(hash32(12,1),hash32(12,1));
 });
 test("factory presets cannot be shadowed",()=>{
-  assert.equal(DEFAULT_PRESETS.length,3);
+  assert.equal(DEFAULT_PRESETS.length,19);
+  for (const id of [
+    "default:krea2","default:krea2-photo","default:krea2-anime","default:krea2-illustration",
+    "default:krea2-3d","default:krea2-product","default:krea2-graphic",
+    "default:h3","default:h3-first","default:h3-first-last","default:h3-last","default:h3-ref",
+    "default:moss","default:moss-photo","default:moss-anime",
+    "default:moss-illustration","default:moss-3d","default:moss-product","default:moss-graphic"
+  ]) assert.ok(DEFAULT_PRESETS.some(p=>p.id===id), id);
   assert.ok(DEFAULT_PRESETS.every(p=>isDefaultPreset(p.id)));
   assert.deepEqual(getPreset("default:krea2",{length:0}),DEFAULT_PRESETS[0]);
   assert.deepEqual(validateUserPresets([
@@ -33,4 +40,22 @@ test("factory presets cannot be shadowed",()=>{
     {id:"user:2",name:"My preset",text:"Good"},
     {id:"user:3",name:"my preset",text:"Duplicate"}
   ]),[{id:"user:2",name:"My preset",text:"Good"}]);
+});
+
+test("presets use the correct model modalities and official H3 formats",()=>{
+  const preset=id=>getPreset(id);
+  const image=DEFAULT_PRESETS.filter(p=>p.id.startsWith("default:krea2")||p.id.startsWith("default:moss"));
+  assert.ok(image.every(p=>!p.text.includes("integrated_multimodal_description:")));
+  assert.match(preset("default:krea2-photo").text,/photograph/i);
+  assert.match(preset("default:krea2-anime").text,/anime/i);
+  assert.match(preset("default:moss").text,/image-generation model, not a video model/);
+  for (const id of ["default:h3","default:h3-first","default:h3-first-last","default:h3-last"]) {
+    for (const field of ["integrated_multimodal_description:","overall_soundscape:","non_diegetic_music:"])
+      assert.ok(preset(id).text.includes(field),id+" missing "+field);
+  }
+  const ref=preset("default:h3-ref").text;
+  for (const field of ["subject_definitions","summary","retention_analysis","detailed_description","overall_soundscape","non_diegetic_music"])
+    assert.ok(ref.includes(field),"reference missing "+field);
+  assert.match(preset("default:h3-first").text,/0\\.00 seconds|0\.00 seconds/);
+  assert.match(preset("default:h3-first-last").text,/Picture 2/);
 });

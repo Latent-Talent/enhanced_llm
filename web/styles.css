@@ -199,6 +199,14 @@
 .eml-preset-row label { flex-basis: 116px; width: 116px; }
 .eml-preset-row button { padding-inline: 7px; }
 .eml-divider { height: 1px; background: #454950; margin: 2px 0 1px; }
+.eml-sampler-row label { flex: 0 0 103px; width: 103px; }
+.eml-sampler-help {
+  padding: 0 2px 2px;
+  color: #acb5c0;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
 .eml-jailbreak {
   border-top: 1px solid #454950;
   padding-top: 3px;

@@ -36,6 +36,22 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 - The redundant native `system_prompt` input is removed: enhancement instructions are supplied by the chosen Enhancement Preset, optionally preceded by **Jailbreak** text. This optional prefix is stored as its own workflow input and does not overwrite a protected/default or user-created preset.
 - **Single LLM seed control:** use the native `Sampling Mode → seed` field (or its connected upstream seed source). Each enhancement queues through ComfyUI's normal lifecycle; upstream seed nodes execute their configured queue-time behavior and update their visible state. Unconnected fixed seeds remain fixed. Prompt Cycle Random/Shuffle uses separate internal randomness and exposes no seed widget.
 
+- **LLM Sampling presets:** Five descriptive, one-click recipes that update the *actual* native `max_length`, `Sampling Mode`, `temperature`, `top_k`, `top_p`, `min_p`, `repetition_penalty`, and `presence_penalty` controls. Presets do not change the native `seed`, or `thinking`, `use_default_template`, and `mtp`. Connected numeric input sockets are preserved; linked fields are reported and the selection shows Custom if the complete preset did not apply. Previously loaded workflows are never automatically overwritten.
+
+### LLM sampling recipes
+
+The sampling preset selector appears at the bottom of the enhancement panel, immediately before the native ComfyUI sampling controls. It applies changes immediately and includes a short usage explanation. Choosing a preset does **not** introduce another seed, model configuration, or separate sampler; it writes the native DynamicCombo child widgets named `sampling_mode.temperature`, etc. Manual changes show Custom when the picker is next opened.
+
+| Preset | Best for | Max length | Temp | Top K | Top P | Min P | Repetition | Presence |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Faithful / Precise | preserving constraints, text and reference details | 1024 | .40 | 40 | .85 | .06 | 1.05 | .00 |
+| Balanced / Recommended | most image and video prompt enhancements | 1024 | .70 | 64 | .92 | .05 | 1.05 | .00 |
+| Creative / Detailed | richer imagery and artistic variation | 1536 | .90 | 80 | .95 | .03 | 1.05 | .00 |
+| High Variety / Exploratory | exploring alternate prompt ideas | 1536 | 1.10 | 120 | .98 | .02 | 1.03 | .00 |
+| Structured / Long Output | lengthy or sectioned MiniMax H3 prompts | 2048 | .55 | 40 | .90 | .05 | 1.05 | .00 |
+
+These settings are starting points, not universal optimums. `max_length` is an upper generation limit rather than an instruction to use all tokens. Low temperature generally produces more repeatable wording; high temperature allows greater variation and can drift from the source. For long H3 reference prompts, raise `max_length` further if outputs are truncated. All presets use Sampling Mode On.
+
 ### Factory presets
 
 These are model/task-specific enhancement instructions, not separate image/video model settings.

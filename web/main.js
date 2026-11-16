@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { MODES, nextIndex } from "./cycle.mjs";
 import { summarizeBatch, buttonLabel } from "./progress.mjs";
+import { SAMPLING_PRESETS, applySamplingPreset, matchingSamplingPreset } from "./sampling.mjs";
 import { createTextareaResizeController, HEIGHT_PROPERTY, TEXTAREA_HEIGHTS } from "./resize.mjs";
 import { DEFAULT_PRESETS, isDefaultPreset, getPreset, validateUserPresets } from "./presets.mjs";
 
@@ -118,6 +119,9 @@ function attach(node) {
     '<textarea data-eml="instructions" rows="5" aria-label="Enhancement system prompt" placeholder="enhancement_text"></textarea>',
     '<details class="eml-jailbreak" data-eml="jailbreak-group"><summary>Jailbreak (optional)</summary>',
     '<textarea data-eml="jailbreak" rows="3" aria-label="Jailbreak prefix for enhancement system prompt" placeholder="Optional instructions added before the selected enhancement preset"></textarea></details>',
+    '<div class="eml-divider"></div>',
+    '<div class="eml-row eml-setting eml-sampler-row"><label>LLM Sampling</label><select data-eml="sampling-preset" aria-label="LLM Sampling Preset"></select></div>',
+    '<div class="eml-sampler-help" data-eml="sampler-help" aria-live="polite"></div>',
     '<div data-eml="rename" class="eml-row eml-rename" hidden><input data-eml="name" maxlength="100" aria-label="New name" placeholder="Name">',
     '<button data-eml="name-save">Save</button><button data-eml="name-cancel">Cancel</button></div>',
     '<div class="eml-status" data-eml="status" role="alert" aria-live="polite" hidden></div>'
@@ -224,6 +228,49 @@ function attach(node) {
     }
     selectPreset(id,false);
   }
+  function syncSamplingPreset(){
+    const matching=matchingSamplingPreset(node);
+    at("sampling-preset").value=matching?.id||"custom";
+    at("sampler-help").textContent=matching?.description||
+      "Custom native settings. Choose a preset to apply it; seed, thinking, MTP and template stay unchanged.";
+  }
+  function renderSamplingPresets(){
+    const select=at("sampling-preset");
+    select.replaceChildren();
+    select.add(mkOption("Custom / Current Values","custom"));
+    for(const preset of SAMPLING_PRESETS){
+      const option=mkOption(preset.name,preset.id);
+      option.title=preset.description;
+      select.add(option);
+    }
+    syncSamplingPreset();
+  }
+  at("sampling-preset").onpointerdown=syncSamplingPreset;
+  at("sampling-preset").onchange=()=>{
+    const id=at("sampling-preset").value;
+    if(id==="custom")return syncSamplingPreset();
+    if(activeBatchId||busy||app.processingQueue){
+      status("Cannot change LLM sampling settings while enhancement submissions are active.");
+      return syncSamplingPreset();
+    }
+    try{
+      const outcome=applySamplingPreset(node,id);
+      status("");
+      const suffix=outcome.skipped.length
+        ? " Connected values unchanged: "+outcome.skipped.join(", ")+"."
+        : " Seed, thinking, MTP and template unchanged.";
+      at("sampler-help").textContent=outcome.preset.description+suffix;
+      at("sampling-preset").value=outcome.matched?id:"custom";
+      // DynamicCombo may have created child controls while applying the preset.
+      const required=Number(node.computeSize?.()?.[1])||0;
+      if(required>Number(node.size?.[1]||0)){
+        node.setSize?.([Math.max(node.size?.[0]||565,565),required]);
+      }
+    }catch(err){
+      syncSamplingPreset();
+      status("Sampling preset: "+err.message);
+    }
+  };
   const showRename=kind=>{
     nameKind=kind;at("rename").hidden=false;
     at("name").value=kind==="set" && current().name!=="Unsaved"?current().name:"";
@@ -454,7 +501,7 @@ function attach(node) {
       at("prompt").value=String(get(node,"prompt")||"");
       at("cycle").value=String(get(node,"prompt_cycle")||"fixed");
       at("run-each").checked=Boolean(get(node,"queue_run_for_each"));
-      renderSets();renderPresets();
+      renderSets();renderPresets();renderSamplingPresets();
       const saved=String(get(node,"enhancement_text")||"");
       if(saved)at("instructions").value=saved;
       else selectPreset(get(node,"enhancement_preset_id")||DEFAULT_PRESETS[0].id);
@@ -484,8 +531,8 @@ function attach(node) {
   const dom=node.addDOMWidget("enhanced_llm_panel","div",root,{
     serialize:false,hideOnZoom:false,
     getMinWidth:()=>480,
-    getMinHeight:()=>resize.minHeight(),
-    getHeight:()=>resize.minHeight()
+    getMinHeight:()=>resize.minHeight()+60,
+    getHeight:()=>resize.minHeight()+60
   });
   dom.serialize=false;
   // Each successful native queue submission consumes one reserved job UUID.

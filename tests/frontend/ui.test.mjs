@@ -23,7 +23,7 @@ test("resizing a textarea drives its node's layout, and is cleaned up",()=>{
   assert.match(ui, /createTextareaResizeController\(node\)/);
   assert.match(ui, /new ResizeObserver\(entries/);
   assert.match(ui, /resize\.observedHeight\(key,entry\.target\.offsetHeight\)/);
-  assert.match(ui, /getMinHeight:\(\)=>resize\.minHeight\(\)/);
+  assert.match(ui, /getMinHeight:\(\)=>resize\.minHeight\(\)\+60/);
   assert.match(ui, /textareaObserver\?\.disconnect\(\)/);
   assert.match(css, /resize:\s*vertical/);
 });
@@ -65,4 +65,15 @@ test("idle button label is Enhance with no stale completion count",()=>{
   assert.match(ui, /data-eml="enhance"[^>]*>Enhance<\/button>/);
   assert.match(ui, /showButton\(progress\.completed,progress\.total,false\)/);
   assert.match(ui, /buttonLabel\(done,total,running\)/);
+});
+
+test("LLM sampling presets modify native widgets and show descriptive help",()=>{
+  assert.match(ui,/sampling\.mjs/);
+  assert.match(ui,/data-eml="sampling-preset" aria-label="LLM Sampling Preset"/);
+  assert.match(ui,/data-eml="sampler-help" aria-live="polite"/);
+  assert.match(ui,/applySamplingPreset\(node,id\)/);
+  assert.match(ui,/matchingSamplingPreset\(node\)/);
+  assert.match(ui,/renderSamplingPresets\(\)/);
+  assert.match(ui,/outcome\.skipped\.join/);
+  assert.match(css,/\.eml-sampler-help/);
 });

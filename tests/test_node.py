@@ -18,8 +18,11 @@ class NodeOutput:
 
 
 def input_factory(type_name):
-    return types.SimpleNamespace(Input=lambda id, **opts: types.SimpleNamespace(
-        id=id, kind=type_name, **opts))
+    return types.SimpleNamespace(
+        Input=lambda id, **opts: types.SimpleNamespace(id=id, kind=type_name, **opts),
+        Output=lambda display_name=None, **opts: types.SimpleNamespace(
+            display_name=display_name, kind=type_name, **opts),
+    )
 
 fake_io = types.SimpleNamespace(
     ComfyNode=object, NodeOutput=NodeOutput,

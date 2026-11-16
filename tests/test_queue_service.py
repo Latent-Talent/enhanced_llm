@@ -31,18 +31,61 @@ def template():
     }
 
 
-def test_enhancement_jobs_are_immutable_and_seeded():
-    raw = template()
-    first = service._seeded_copy(raw, "10", "one", 0)
-    second = service._seeded_copy(raw, "10", "two", 1)
-    assert first["10"]["inputs"]["sampling_mode"]["seed"] == 120
-    assert second["10"]["inputs"]["sampling_mode"]["seed"] == 121
-    assert first["10"]["inputs"]["enhancement_job_id"] == "one"
-    assert raw["10"]["inputs"]["ui_action"] == "pass"
-    assert raw["10"]["inputs"]["sampling_mode"]["seed"] == 120
-    assert "llm_seed" not in first["10"]["inputs"]
-    assert "enhancement_index" not in first["10"]["inputs"]
+def test_batch_reservation_does_not_mutate_upstream_or_local_seed():
+    original = template()
+    original["7"] = {"class_type": "ExternalSeed", "inputs": {
+        "seed": 930, "control_after_generate": "randomize"}}
+    original["10"]["inputs"]["sampling_mode"]["seed"] = ["7", 0]
+    batch = service.reserve_batch("10", 3, False, original, None, "client")
+    assert len(batch.jobs) == 3
+    assert len(set(batch.jobs)) == 3
+    assert all(service.JOBS[jid].state == "reserved" for jid in batch.jobs)
+    assert batch.template["10"]["inputs"]["sampling_mode"]["seed"] == ["7", 0]
+    assert batch.template["7"]["inputs"]["control_after_generate"] == "randomize"
+    assert original["10"]["inputs"]["ui_action"] == "pass"
+    assert original["7"]["inputs"]["seed"] == 930
+    for jid in batch.jobs:
+        service.JOBS.pop(jid)
+    service.BATCHES.pop(batch.id)
 
+
+def test_on_prompt_hook_maps_reservation_to_real_comfy_prompt_id():
+    batch = service.reserve_batch("10", 1, True, template(), None, "client")
+    job_id = batch.jobs[0]
+    payload = {"prompt": template()}
+    payload["prompt"]["10"]["inputs"]["ui_action"] = "enhance"
+    payload["prompt"]["10"]["inputs"]["enhancement_job_id"] = job_id
+    before_seed = payload["prompt"]["10"]["inputs"]["sampling_mode"]["seed"]
+    updated = service._on_prompt_handler(payload)
+    assert updated["prompt_id"] == job_id
+    assert updated["prompt"]["10"]["inputs"]["sampling_mode"]["seed"] == before_seed
+    assert service.JOBS[job_id].state == "pending"
+    second = service._on_prompt_handler({"prompt": payload["prompt"]})
+    assert "prompt_id" not in second
+    service.JOBS.pop(job_id)
+    service.BATCHES.pop(batch.id)
+
+
+def test_finalize_closes_only_failed_reservations():
+    batch = service.reserve_batch("10", 3, False, template(), None, None)
+    accepted = batch.jobs[0]
+    payload = {"prompt": template()}
+    payload["prompt"]["10"]["inputs"].update(
+        {"ui_action": "enhance", "enhancement_job_id": accepted}
+    )
+    service._on_prompt_handler(payload)
+    service.finalize_batch(batch, [accepted])
+    assert service.JOBS[accepted].state == "pending"
+    assert [service.JOBS[j].state for j in batch.jobs[1:]] == ["error", "error"]
+    try:
+        service.finalize_batch(batch, ["unknown"])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Finalization accepted foreign job ID")
+    for jid in batch.jobs:
+        service.JOBS.pop(jid)
+    service.BATCHES.pop(batch.id)
 
 def test_full_pass_through_severs_model_links_without_mutating_template():
     batch = service.Batch(id="batch", node_id="10", run_each=True,
@@ -63,7 +106,7 @@ def test_completing_one_job_queues_exactly_one_full_run():
                           template=template(), workflow=None, client_id="client")
     batch.jobs.append(job_id)
     service.BATCHES[batch_id] = batch
-    service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=0)
+    service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=0, state="pending")
 
     class Queue:
         def __init__(self): self.items = []
@@ -104,7 +147,7 @@ def test_cancel_targets_only_its_batch_and_prevents_auto_full_run():
     batch.jobs.extend([job1, job2])
     service.BATCHES[batch_id] = batch
     for i, job_id in enumerate(batch.jobs):
-        service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=i)
+        service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=i, state="pending")
 
     class Queue:
         def __init__(self):

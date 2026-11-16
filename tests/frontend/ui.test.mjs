@@ -49,3 +49,14 @@ test("optional jailbreak textarea is workflow-backed and collapsible",()=>{
   assert.match(ui, /resize\.setJailbreakVisible\(open\)/);
   assert.match(css, /\.eml-jailbreak summary/);
 });
+
+test("enhancement batching uses ComfyUI lifecycle hooks for upstream seed nodes",()=>{
+  assert.match(ui, /app\.queuePrompt\(0,count,\{queueNodeIds:\[String\(node\.id\)\]\}\)/);
+  assert.match(ui, /dom\.beforeQueued=\(\{isPartialExecution\}=\{\}\)=>/);
+  assert.match(ui, /dom\.afterQueued=\(\{isPartialExecution\}=\{\}\)=>/);
+  assert.match(ui, /submittingBatch\.submitted\.push\(submittingBatch\.current\)/);
+  assert.match(ui, /if\(!isPartialExecution\)advanceCycle\(\)/);
+  assert.match(ui, /enhanced_llm\/batch\/reserve/);
+  assert.match(ui, /submitted_job_ids:submitted/);
+  assert.doesNotMatch(ui, /enhanced_llm\/queue/);
+});

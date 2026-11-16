@@ -140,6 +140,7 @@ function attach(node) {
   };
   let state=parseState(get(node,"prompt_sets_json"));
   let undo=[],redo=[],count=1,nameKind=null,editing=false,busy=false,activeBatchId=null,poll=null;
+  let submittingBatch=null;
   const seenJobs=new Set();
   const current=()=>state.sets[state.active];
   const selected=()=>current().items[state.index];
@@ -382,12 +383,16 @@ function attach(node) {
     if(!at("instructions").value.trim())return status("Select or enter an enhancement preset.");
     if(!node.inputs?.some(i=>i.name==="clip"&&i.link!=null))
       return status("Connect a text-generation CLIP model.");
+    if(app.processingQueue){
+      return status("ComfyUI is already submitting prompts. Retry when submission finishes.");
+    }
     busy=true;at("enhance").disabled=true;
     status("");
     showButton(0,count,true);
+    let reserved=null;
     try{
       const snapshot=await app.graphToPrompt();
-      const response=await api.fetchApi("/enhanced_llm/queue",{
+      const response=await api.fetchApi("/enhanced_llm/batch/reserve",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
           node_id:String(node.id),count,queue_run_for_each:at("run-each").checked,
@@ -397,13 +402,49 @@ function attach(node) {
       });
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"HTTP "+response.status);
+      if(app.processingQueue)throw new Error("ComfyUI started submitting another queue request.");
+      reserved=data;
       activeBatchId=data.batch_id;
-      showButton(0,count,true);
-      monitorBatch(activeBatchId);
+      submittingBatch={
+        ids:data.jobs.map(j=>j.job_id),
+        next:0,
+        current:null,
+        submitted:[],
+      };
+      // ComfyUI invokes upstream beforeQueued -> graphToPrompt -> native
+      // /prompt -> upstream afterQueued on *every* partial run. This honors
+      // a connected seed node's configured fixed/increment/random mode and
+      // updates its visible state. Never emulate seed math here.
+      const queued=await app.queuePrompt(0,count,{queueNodeIds:[String(node.id)]});
+      if(!queued && !submittingBatch.submitted.length){
+        status("ComfyUI did not accept the enhancement batch.");
+      }
     }catch(err){
-      showButton();
       status("Queue failed: "+err.message);
-    }finally{busy=false;at("enhance").disabled=false;}
+    }finally{
+      // Restore normal outputs before another workflow submission.
+      const submitted=submittingBatch?.submitted||[];
+      submittingBatch=null;
+      set(node,"ui_action","pass");
+      set(node,"enhancement_job_id","");
+      if(reserved){
+        try{
+          const r=await api.fetchApi(
+            "/enhanced_llm/batch/"+encodeURIComponent(reserved.batch_id)+"/finalize",{
+              method:"POST",headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({submitted_job_ids:submitted})
+            });
+          if(!r.ok)throw new Error("HTTP "+r.status);
+        }catch(err){
+          status("Batch reconciliation failed: "+err.message);
+        }
+        monitorBatch(reserved.batch_id);
+      }else{
+        activeBatchId=null;
+        showButton();
+      }
+      busy=false;at("enhance").disabled=false;
+    }
   };
   const panel={
     updatePresets:renderPresets,
@@ -447,11 +488,28 @@ function attach(node) {
     getHeight:()=>resize.minHeight()
   });
   dom.serialize=false;
+  // Each successful native queue submission consumes one reserved job UUID.
+  // The normal ComfyUI queue lifecycle updates upstream seed widgets.
+  dom.beforeQueued=({isPartialExecution}={})=>{
+    if(!isPartialExecution || !submittingBatch || submittingBatch.current)return;
+    const id=submittingBatch.ids[submittingBatch.next++];
+    if(!id)return;
+    submittingBatch.current=id;
+    set(node,"ui_action","enhance");
+    set(node,"enhancement_job_id",id);
+  };
+  dom.afterQueued=({isPartialExecution}={})=>{
+    if(!isPartialExecution || !submittingBatch?.current)return;
+    submittingBatch.submitted.push(submittingBatch.current);
+    submittingBatch.current=null;
+  };
   // DOM widget first, followed by ComfyUI's native sampling and MTP controls.
   const index=node.widgets.indexOf(dom);
   if(index>=0){node.widgets.splice(index,1);node.widgets.unshift(dom);}
   const w=ownWidget(node,"enhanced_prompt");
-  if(w)w.afterQueued=advanceCycle; // only native full-workflow queue advances
+  if(w)w.afterQueued=({isPartialExecution}={})=>{
+    if(!isPartialExecution)advanceCycle();
+  }; // partial enhancement queuing must not advance result cycling
   panel.hydrate();
   const requiredHeight=Number(node.computeSize?.()?.[1])||0;
   node.setSize?.([

@@ -34,7 +34,7 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 - Shuffle and Random choose randomness automatically in the background. Shuffle visits every prompt once per shuffled cycle; the native LLM seed remains a separate generation control.
 - Enhancement presets: 19 protected defaults grouped by Krea 2, MiniMax H3, and MOSS-Image, plus editable/savable user presets.
 - The redundant native `system_prompt` input is removed: enhancement instructions are supplied by the chosen Enhancement Preset, optionally preceded by **Jailbreak** text. This optional prefix is stored as its own workflow input and does not overwrite a protected/default or user-created preset.
-- **Single LLM seed control:** the native `Sampling Mode → seed` field is the only generation seed setting. Enhancements use this seed directly; enhancement batches offset it by 0, 1, 2, etc. per queued LLM run, without changing the visible value. Random and Shuffle prompt cycling use automatic internal randomness and do not add a seed widget.
+- **Single LLM seed control:** use the native `Sampling Mode → seed` field (or its connected upstream seed source). Each enhancement queues through ComfyUI's normal lifecycle; upstream seed nodes execute their configured queue-time behavior and update their visible state. Unconnected fixed seeds remain fixed. Prompt Cycle Random/Shuffle uses separate internal randomness and exposes no seed widget.
 
 ### Factory presets
 
@@ -57,7 +57,9 @@ Factory defaults cannot be overwritten or deleted. To customize one, edit its in
 
 ## Queuing design
 
-The Enhance button takes one immutable workflow snapshot and sends it to a server-side queue bridge. The bridge validates and queues the chosen number of partial LLM executions, using distinct IDs and successive native sampling seeds. A successful result is saved and, if Queue Run for Each is enabled, triggers validation and submission of one full-workflow snapshot with that exact text.
+The Enhance button first reserves unique job IDs and an immutable full-workflow template on the server. Each partial enhancement is then queued through **ComfyUI's own `app.queuePrompt` lifecycle**. This invokes every upstream widget's `beforeQueued` and `afterQueued` callbacks, including connected seed-source nodes, rather than emulating an increment or random setting. The upstream seed node's normal queue-time UI updates remain visible. A server prompt hook maps each reserved job UUID to its real ComfyUI prompt ID for accurate cancellation and history lookups.
+
+A successful result is saved and, if Queue Run for Each is enabled, triggers validation and submission of one full-workflow snapshot with that exact text. Unsubmitted reservations are closed after the frontend queue operation completes.
 
 The queued full workflow disconnects the LLM-only upstream links (CLIP, multimodal inputs and system prompt) from the pass-through enhancer, reducing unnecessary model loading. Each enhancement job can only trigger its associated full run once, even on repeated completion signals.
 
@@ -67,6 +69,7 @@ The server-side coordinator stays alive while ComfyUI is running and does not re
 
 - Up to 32 enhancements in one batch.
 - The full workflow reflects the graph at the moment the batch was submitted; later edits do not modify already-reserved runs.
+- Queue-time seed-node updates depend on that source node implementing ComfyUI's beforeQueued/afterQueued lifecycle. Execution-only state changes do not automatically update the browser widget. Enhancement batches cannot be submitted while a separate ComfyUI queue submission is in progress; queued execution jobs already running are unaffected.
 - Browser-side prompt-set editing needs the browser open to receive/display incoming result events. The server-side automatic queuing is independent.
 - Intended for a local/trusted ComfyUI server. Multiuser deployments should add per-user permission boundaries around the custom batch endpoint.
 - Unit tests check the core behavior without needing a model or GPU; end-to-end UI/inference testing requires ComfyUI.

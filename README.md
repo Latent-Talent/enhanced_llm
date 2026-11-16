@@ -61,7 +61,7 @@ The server-side coordinator stays alive while ComfyUI is running and does not re
 ## Tests
 
     python -m pip install pytest aiohttp
-    python -m pytest -q
+    python tests/run_unit_tests.py
     node --test tests/frontend/*.test.mjs
 
 ## Files

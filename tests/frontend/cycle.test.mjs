@@ -36,7 +36,7 @@ test("factory presets cannot be shadowed",()=>{
   assert.deepEqual(getPreset("default:krea2",{length:0}),DEFAULT_PRESETS[0]);
   assert.deepEqual(validateUserPresets([
     {id:"default:krea2",name:"hack",text:"bad"},
-    {id:"user:1",name:"Default / Krea 2 - Image",text:"bad"},
+    {id:"user:1",name:"Default / Krea 2 - General",text:"bad"},
     {id:"user:2",name:"My preset",text:"Good"},
     {id:"user:3",name:"my preset",text:"Duplicate"}
   ]),[{id:"user:2",name:"My preset",text:"Good"}]);

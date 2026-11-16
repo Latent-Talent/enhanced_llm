@@ -84,9 +84,8 @@ def _seeded_copy(template: dict, node_id: str, job_id: str, index: int):
     inputs = prompt[node_id]["inputs"]
     inputs["ui_action"] = "enhance"
     inputs["enhancement_job_id"] = job_id
-    inputs["enhancement_index"] = index
-    # Deterministic, distinct sampling seeds for each enhancement request,
-    # without modifying the user's native sampling settings.
+    # Read only the native Sampling Mode > seed, incrementing it per
+    # enhancement on a snapshot; leave the node's visible seed unchanged.
     sampling = inputs.get("sampling_mode")
     if isinstance(sampling, dict) and sampling.get("sampling_mode") == "on":
         if isinstance(sampling.get("seed"), int):

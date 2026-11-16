@@ -436,8 +436,8 @@ function attach(node) {
   PANELS.add(panel);
   node.__emlPanel=panel;
   for(const id of ["prompt","enhanced_prompt","enhanced_thinking","enhancement_text","jailbreak_text",
-    "enhancement_preset_id","prompt_sets_json","prompt_cycle","cycle_seed",
-    "queue_run_for_each","ui_action","enhancement_job_id","enhancement_index"]){
+    "enhancement_preset_id","prompt_sets_json","prompt_cycle",
+    "queue_run_for_each","ui_action","enhancement_job_id"]){
     const w=ownWidget(node,id);if(w)w.hidden=true;
   }
   const dom=node.addDOMWidget("enhanced_llm_panel","div",root,{

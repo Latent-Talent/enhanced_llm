@@ -34,7 +34,7 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 - Shuffle and Random choose randomness automatically in the background. Shuffle visits every prompt once per shuffled cycle; the native LLM seed remains a separate generation control.
 - Enhancement presets: 19 protected defaults grouped by Krea 2, MiniMax H3, and MOSS-Image, plus editable/savable user presets.
 - The redundant native `system_prompt` input is removed: enhancement instructions are supplied by the chosen Enhancement Preset, optionally preceded by **Jailbreak** text. This optional prefix is stored as its own workflow input and does not overwrite a protected/default or user-created preset.
-- The native sampling `seed` widget remains available. An optional `llm_seed` INT socket overrides it when connected; the requested enhancement batch advances the effective LLM seed for distinct samples. Prompt Cycle Random/Shuffle use independent automatic randomness.
+- **Single LLM seed control:** the native `Sampling Mode → seed` field is the only generation seed setting. Enhancements use this seed directly; enhancement batches offset it by 0, 1, 2, etc. per queued LLM run, without changing the visible value. Random and Shuffle prompt cycling use automatic internal randomness and do not add a seed widget.
 
 ### Factory presets
 

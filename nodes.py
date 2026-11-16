@@ -30,16 +30,11 @@ class EnhancedGenerateText(io.ComfyNode):
                     io.String.Input("enhanced_thinking", multiline=True, default=""),
                     io.String.Input("enhancement_text", multiline=True, default=""),
                     io.String.Input("jailbreak_text", multiline=True, default=""),
-                    io.Int.Input("llm_seed", optional=True, force_input=True,
-                                 min=0, max=0xffffffffffffffff,
-                                 tooltip="Optional INT socket overriding the native sampling seed for LLM generation."),
-                    io.Int.Input("enhancement_index", default=0, min=0, max=31),
                     io.String.Input("enhancement_preset_id", default="default:krea2"),
                     io.String.Input("prompt_sets_json", multiline=True,
                                     default='{"version":1,"sets":[{"name":"Unsaved","items":[],"step":0}],"active":0,"index":0}'),
                     io.Combo.Input("prompt_cycle", options=[
                         "fixed", "increment", "decrement", "shuffle", "random"], default="fixed"),
-                    io.Int.Input("cycle_seed", default=0, min=0, max=2147483647),
                     io.Boolean.Input("queue_run_for_each", default=False),
                     io.String.Input("ui_action", default="pass"),
                     io.String.Input("enhancement_job_id", default=""),
@@ -63,9 +58,8 @@ class EnhancedGenerateText(io.ComfyNode):
     def execute(cls, clip=None, prompt="", max_length=512, sampling_mode=None,
                 enhanced_prompt="", enhanced_thinking="", enhancement_text="", jailbreak_text="",
                 enhancement_preset_id="default:krea2", prompt_sets_json="",
-                prompt_cycle="fixed", cycle_seed=0, queue_run_for_each=False,
+                prompt_cycle="fixed", queue_run_for_each=False,
                 ui_action="pass", enhancement_job_id="",
-                llm_seed=None, enhancement_index=0,
                 thinking=False, use_default_template=True,
                 mtp="auto", images=None, videos=None, audios=None,
                 **_extra) -> io.NodeOutput:
@@ -86,11 +80,10 @@ class EnhancedGenerateText(io.ComfyNode):
         if prefix:
             instructions = prefix + "\n\n" + instructions
 
+        # The native Sampling Mode > seed widget is the sole generation seed.
+        # The queue manager offsets it per enhancement in a batch, without
+        # changing the saved widget value or introducing a second seed input.
         sampling = dict(sampling_mode or {"sampling_mode": "on"})
-        if llm_seed is not None:
-            # Separate LLM seed input; never use the prompt-cycle random seed.
-            # Batch jobs increment the connected seed without changing the source node.
-            sampling["seed"] = (int(llm_seed) + int(enhancement_index)) % (1 << 64)
 
         generated = TextGenerateV2.execute(
             clip=clip,

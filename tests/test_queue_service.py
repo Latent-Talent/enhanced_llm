@@ -133,7 +133,7 @@ def test_disabled_full_run_never_queues():
                           template=template(), workflow=None, client_id=None)
     batch.jobs.append(job_id)
     service.BATCHES[batch_id] = batch
-    service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=0)
+    service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=0, state="pending")
     asyncio.run(service._complete(job_id, "text", ""))
     assert service.JOBS[job_id].state == "enhanced"
     service.JOBS.pop(job_id)

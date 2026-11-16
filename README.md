@@ -18,7 +18,7 @@ Requires a recent ComfyUI containing TextGenerateV2 and ComfyUI V3 custom node s
 3. Select (or edit) an Enhancement Preset, whose text is supplied as the LLM system prompt. Optionally expand **Jailbreak** to prepend a separate custom instruction block before those preset instructions.
 4. Choose an enhancement count from 1 to 32.
 5. Set **Queue Run for Each** (default Off).
-6. Click Enhance Prompt. Each enhancement is queued as a partial graph run consisting of the node and its upstream dependencies. The button displays progress (`Cancel · 2/5` while running; `Enhance Prompt · 5/5` when done). Click Cancel to cancel outstanding jobs from this enhancement batch only.
+6. Click Enhance Prompt. Each enhancement is queued as a partial graph run consisting of the node and its upstream dependencies. The button displays progress (`Cancel · 2/5` while running) and reverts to `Enhance` with no counter after completion or cancellation. Click Cancel to cancel outstanding jobs from this enhancement batch only.
 7. Result text is appended to the active prompt set.
 8. With the toggle On, every successful enhancement automatically queues ONE full workflow using that specific result. The full run joins ComfyUI's standard queue, does not skip other queued jobs, and does not run the enhancement LLM again.
 
@@ -88,3 +88,7 @@ The server-side coordinator stays alive while ComfyUI is running and does not re
 - web/cycle.mjs: deterministic prompt selection.
 - web/presets.mjs: immutable built-in preset definitions.
 - web/styles.css: custom controls styled to match ComfyUI.
+
+### Queue job naming
+
+ComfyUI's standard queue overlay does not currently expose a supported custom per-job title field. It renders generic pending/running statuses and completed filenames, so injecting a name into job metadata does not rename a queue row. A separate frontend queue integration would be needed for visible labels such as "Enhancement 1/5" and "Full Run 1/5"; this plugin does not monkey-patch ComfyUI's queue components.

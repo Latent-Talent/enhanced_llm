@@ -60,3 +60,9 @@ test("enhancement batching uses ComfyUI lifecycle hooks for upstream seed nodes"
   assert.match(ui, /submitted_job_ids:submitted/);
   assert.doesNotMatch(ui, /enhanced_llm\/queue/);
 });
+
+test("idle button label is Enhance with no stale completion count",()=>{
+  assert.match(ui, /data-eml="enhance"[^>]*>Enhance<\/button>/);
+  assert.match(ui, /showButton\(progress\.completed,progress\.total,false\)/);
+  assert.match(ui, /buttonLabel\(done,total,running\)/);
+});

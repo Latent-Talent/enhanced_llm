@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { summarizeBatch, buttonLabel } from "../../web/progress.mjs";
 
 test("progress labels live in the enhance button, including cancel state",()=>{
-  assert.equal(buttonLabel(), "Enhance Prompt");
+  assert.equal(buttonLabel(), "Enhance");
   assert.equal(buttonLabel(0,5,true), "Cancel · 0/5");
   assert.equal(buttonLabel(3,5,true), "Cancel · 3/5");
-  assert.equal(buttonLabel(5,5,false), "Enhance Prompt · 5/5");
-  assert.equal(buttonLabel(7,5,false), "Enhance Prompt · 5/5");
+  assert.equal(buttonLabel(5,5,false), "Enhance");
+  assert.equal(buttonLabel(7,5,false), "Enhance");
+  assert.equal(buttonLabel(1,5,false), "Enhance"); // after cancellation
+  assert.equal(buttonLabel(0,0,false), "Enhance"); // after a failed submission
 });
 
 test("only successful enhancements advance progress",()=>{

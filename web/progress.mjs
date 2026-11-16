@@ -16,7 +16,8 @@ export function summarizeBatch(jobs) {
 }
 
 export function buttonLabel(completed = 0, total = 0, active = false) {
-  const label = active ? "Cancel" : "Enhance Prompt";
+  if (!active) return "Enhance";
+  const label = "Cancel";
   if (!total) return label;
   const n = Math.max(0, Math.min(total, Math.floor(Number(completed) || 0)));
   return label + " · " + n + "/" + total;

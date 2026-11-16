@@ -99,7 +99,7 @@ function attach(node) {
   // Static markup: user text and generated text only enter DOM via value/textContent.
   root.innerHTML=[
     '<textarea data-eml="prompt" rows="4" aria-label="Prompt" placeholder="prompt"></textarea>',
-    '<div class="eml-row eml-toolbar eml-enhance-row"><button class="eml-primary" data-eml="enhance" title="Run only upstream inputs and the connected LLM">Enhance Prompt</button>',
+    '<div class="eml-row eml-toolbar eml-enhance-row"><button class="eml-primary" data-eml="enhance" title="Run only upstream inputs and the connected LLM">Enhance</button>',
     '<span class="eml-counter"><button data-eml="minus" title="Fewer enhancements">−</button><span data-eml="count">1</span><button data-eml="plus" title="More enhancements">+</button></span>',
     '<button data-eml="promote" title="Copy enhanced text into original prompt">↑</button><button data-eml="undo1">Undo</button></div>',
     '<label class="eml-toggle" title="Queue one full workflow run for each successful enhancement">',

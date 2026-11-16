@@ -115,9 +115,9 @@ async def _complete(job_id: str, result: str, reasoning: str):
         batch = BATCHES.get(job.batch_id)
     if batch is None:
         return
-    server = _server()
     if not batch.run_each:
         return
+    server = _server()
     full_id = str(uuid.uuid4())
     try:
         full = _full_copy(batch, result, reasoning)

@@ -74,8 +74,8 @@ def test_completing_one_job_queues_exactly_one_full_run():
         assert targets is None
         assert prompt["10"]["inputs"]["enhanced_prompt"] == "enhanced text"
         return ["20"]
-    with mock.patch.object(service, "_server", return_value=fake_server), \
-         mock.patch.object(service, "_validate", side_effect=validate):
+    with (mock.patch.object(service, "_server", return_value=fake_server),
+          mock.patch.object(service, "_validate", side_effect=validate)):
         asyncio.run(service._complete(job_id, "enhanced text", ""))
         asyncio.run(service._complete(job_id, "enhanced text", ""))
     assert len(fake_server.prompt_queue.items) == 1
@@ -93,5 +93,65 @@ def test_disabled_full_run_never_queues():
     service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=0)
     asyncio.run(service._complete(job_id, "text", ""))
     assert service.JOBS[job_id].state == "enhanced"
+    service.JOBS.pop(job_id)
+    service.BATCHES.pop(batch_id)
+
+
+def test_cancel_targets_only_its_batch_and_prevents_auto_full_run():
+    batch_id, job1, job2, unrelated = "cancel-batch", "cancel-one", "cancel-two", "other-job"
+    batch = service.Batch(id=batch_id, node_id="10", run_each=True,
+                          template=template(), workflow=None, client_id="client")
+    batch.jobs.extend([job1, job2])
+    service.BATCHES[batch_id] = batch
+    for i, job_id in enumerate(batch.jobs):
+        service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=i)
+
+    class Queue:
+        def __init__(self):
+            self.items = [(1, job1), (2, job2), (3, unrelated)]
+            self.interrupts = []
+        def delete_queue_item(self, predicate):
+            for item in list(self.items):
+                if predicate(item):
+                    self.items.remove(item)
+                    return True
+            return False
+        def interrupt_if_running(self, prompt_id):
+            self.interrupts.append(prompt_id)
+            return False
+
+    fake_server = types.SimpleNamespace(prompt_queue=Queue())
+    service.cancel_batch_jobs(batch, fake_server)
+    assert batch.cancelled is True
+    assert [item[1] for item in fake_server.prompt_queue.items] == [unrelated]
+    assert set(fake_server.prompt_queue.interrupts) == {job1, job2}
+    assert service.JOBS[job1].state == "cancelled"
+    with mock.patch.object(service, "_server", return_value=fake_server):
+        asyncio.run(service._complete(job1, "text", ""))
+    assert [item[1] for item in fake_server.prompt_queue.items] == [unrelated]
+    for job_id in batch.jobs:
+        service.JOBS.pop(job_id)
+    service.BATCHES.pop(batch_id)
+
+
+def test_cancelling_while_full_run_validates_prevents_late_submission():
+    batch_id, job_id = "late-batch", "late-job"
+    batch = service.Batch(id=batch_id, node_id="10", run_each=True,
+                          template=template(), workflow=None, client_id=None)
+    batch.jobs.append(job_id)
+    service.BATCHES[batch_id] = batch
+    service.JOBS[job_id] = service.Job(id=job_id, batch_id=batch_id, index=0)
+
+    class Queue:
+        def __init__(self): self.items = []
+        def put(self, item): self.items.append(item)
+    fake_server = types.SimpleNamespace(number=0, prompt_queue=Queue())
+    async def validate(_id, _graph, targets=None):
+        batch.cancelled = True
+        return ["20"]
+    with (mock.patch.object(service, "_server", return_value=fake_server),
+          mock.patch.object(service, "_validate", side_effect=validate)):
+        asyncio.run(service._complete(job_id, "generated prompt", ""))
+    assert fake_server.prompt_queue.items == []
     service.JOBS.pop(job_id)
     service.BATCHES.pop(batch_id)

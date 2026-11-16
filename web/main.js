@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { MODES, nextIndex } from "./cycle.mjs";
+import { summarizeBatch, buttonLabel } from "./progress.mjs";
 import { createTextareaResizeController, HEIGHT_PROPERTY, TEXTAREA_HEIGHTS } from "./resize.mjs";
 import { DEFAULT_PRESETS, isDefaultPreset, getPreset, validateUserPresets } from "./presets.mjs";
 
@@ -89,7 +90,7 @@ function attach(node) {
   const resize=createTextareaResizeController(node);
   let textareaObserver=null;
   function restoreTextareaHeights() {
-    resize.restore(node.properties?.[HEIGHT_PROPERTY]);
+    resize.restore(node.properties?.[HEIGHT_PROPERTY],at("jailbreak-group").open);
     for (const key of Object.keys(TEXTAREA_HEIGHTS)) {
       const input=field(root,key);
       if(input)input.style.height=resize.size(key)+"px";
@@ -115,13 +116,30 @@ function attach(node) {
     '<button data-eml="save-as" title="Save as new preset">Save As</button><select data-eml="presets" aria-label="Enhancement Preset"></select>',
     '<button data-eml="delete-preset" title="Delete user preset">×</button></div>',
     '<textarea data-eml="instructions" rows="5" aria-label="Enhancement system prompt" placeholder="enhancement_text"></textarea>',
+    '<details class="eml-jailbreak" data-eml="jailbreak-group"><summary>Jailbreak (optional)</summary>',
+    '<textarea data-eml="jailbreak" rows="3" aria-label="Jailbreak prefix for enhancement system prompt" placeholder="Optional instructions added before the selected enhancement preset"></textarea></details>',
     '<div data-eml="rename" class="eml-row eml-rename" hidden><input data-eml="name" maxlength="100" aria-label="New name" placeholder="Name">',
     '<button data-eml="name-save">Save</button><button data-eml="name-cancel">Cancel</button></div>',
-    '<div class="eml-status" data-eml="status" role="status" aria-live="polite"></div>'
+    '<div class="eml-status" data-eml="status" role="alert" aria-live="polite" hidden></div>'
   ].join("");
-  const at=id=>field(root,id), status=t=>{at("status").textContent=String(t||"");};
+  const at=id=>field(root,id);
+  // No permanent status footer; show feedback only when an error needs attention.
+  const status=message=>{
+    const text=String(message||"");
+    at("status").textContent=text;
+    at("status").hidden=!text;
+  };
+  const showButton=(done=0,total=0,running=false)=>{
+    const button=at("enhance");
+    button.textContent=buttonLabel(done,total,running);
+    button.classList.toggle("eml-cancel",running);
+    button.title=running
+      ? "Cancel outstanding enhancements in this batch (does not remove full runs already queued)"
+      : "Run only upstream inputs and the connected LLM";
+    button.setAttribute("aria-label",button.textContent);
+  };
   let state=parseState(get(node,"prompt_sets_json"));
-  let undo=[],redo=[],count=1,nameKind=null,editing=false,busy=false,lastBatch=null,poll=null;
+  let undo=[],redo=[],count=1,nameKind=null,editing=false,busy=false,activeBatchId=null,poll=null;
   const seenJobs=new Set();
   const current=()=>state.sets[state.active];
   const selected=()=>current().items[state.index];
@@ -175,7 +193,7 @@ function attach(node) {
     remember();current().items.push({text,thinking:String(item.thinking||"")});
     state.index=current().items.length-1;
     renderSelection();
-    status("Enhancement saved ("+current().items.length+" in set).");
+    status("");
   }
   function selectPreset(id,resetText=true){
     const p=getPreset(id,userPresets)||DEFAULT_PRESETS[0];
@@ -217,14 +235,14 @@ function attach(node) {
       if(nameKind==="set"){
         if(state.sets.some((s,i)=>i!==state.active&&s.name.toLowerCase()===name.toLowerCase()))
           throw new Error("That prompt set name already exists.");
-        remember();current().name=name;renderSets();status("Prompt set saved with workflow.");
+        remember();current().name=name;renderSets();status("");
       }else if(nameKind==="preset"){
         if(!presetsLoaded)throw new Error("User preset storage is unavailable.");
         if([...DEFAULT_PRESETS,...userPresets].some(p=>p.name.toLowerCase()===name.toLowerCase()))
           throw new Error("That preset name already exists.");
         const id="user:"+(globalThis.crypto?.randomUUID?.()||String(Date.now()));
         await writePresets([...userPresets,{id,name,text:at("instructions").value}]);
-        selectPreset(id);status("User preset saved.");
+        selectPreset(id);status("");
       }
       nameKind=null;at("rename").hidden=true;
     }catch(err){status(err.message);}
@@ -241,6 +259,13 @@ function attach(node) {
   };
   at("enhanced").onblur=()=>{editing=false;renderSelection();};
   at("instructions").oninput=()=>set(node,"enhancement_text",at("instructions").value);
+  at("jailbreak").oninput=()=>set(node,"jailbreak_text",at("jailbreak").value);
+  at("jailbreak-group").ontoggle=()=>{
+    const open=at("jailbreak-group").open;
+    if(!node.properties)node.properties={};
+    node.properties.enhancedLLMJailbreakOpen=open;
+    resize.setJailbreakVisible(open);
+  };
   at("minus").onclick=()=>{count=Math.max(1,count-1);at("count").textContent=count;};
   at("plus").onclick=()=>{count=Math.min(32,count+1);at("count").textContent=count;};
   at("run-each").onchange=()=>set(node,"queue_run_for_each",at("run-each").checked);
@@ -290,7 +315,7 @@ function attach(node) {
     if(!presetsLoaded)return status("User preset storage unavailable.");
     try{
       await writePresets(userPresets.map(p=>p.id===id?{...p,text:at("instructions").value}:p));
-      status("Preset saved.");
+      status("");
     }catch(err){status("Save failed: "+err.message);}
   };
   at("save-as").onclick=()=>showRename("preset");
@@ -299,7 +324,7 @@ function attach(node) {
     if(isDefaultPreset(id))return status("Default presets cannot be deleted.");
     try{
       await writePresets(userPresets.filter(p=>p.id!==id));
-      selectPreset(DEFAULT_PRESETS[0].id);status("User preset deleted.");
+      selectPreset(DEFAULT_PRESETS[0].id);status("");
     }catch(err){status("Delete failed: "+err.message);}
   };
   at("name-save").onclick=commitName;
@@ -311,17 +336,23 @@ function attach(node) {
   function monitorBatch(id){
     if(poll)clearInterval(poll);
     const refresh=async()=>{
+      if(activeBatchId!==id)return;
       try{
         const r=await api.fetchApi("/enhanced_llm/batch/"+encodeURIComponent(id));
-        if(!r.ok)return;
+        if(!r.ok)throw new Error("HTTP "+r.status);
         const data=await r.json();
-        const items=data.jobs||[];
-        const n=items.filter(j=>j.state!=="pending").length;
-        const runs=items.filter(j=>j.state==="full_queued").length;
-        const errors=items.filter(j=>j.state==="full_error").length;
-        status("Enhancements "+n+"/"+items.length+" · full runs queued "+runs+
-          (errors?" · full-run failures "+errors:""));
-        if(n===items.length && poll){clearInterval(poll);poll=null;}
+        if(activeBatchId!==id)return; // late response from an older batch
+        const progress=summarizeBatch(data.jobs);
+        showButton(progress.completed,progress.total,!progress.terminal);
+        if(progress.failed || progress.fullRunErrors){
+          status(progress.failed+" enhancement failures; "+
+            progress.fullRunErrors+" full runs failed to queue.");
+        }
+        if(progress.terminal){
+          if(poll){clearInterval(poll);poll=null;}
+          activeBatchId=null;
+          showButton(progress.completed,progress.total,false);
+        }
       }catch(err){console.warn("[Enhanced LLM] Queue status:",err);}
     };
     poll=setInterval(refresh,1600);
@@ -329,11 +360,31 @@ function attach(node) {
   }
   at("enhance").onclick=async()=>{
     if(busy)return;
+    if(activeBatchId){
+      // Cancel only this node's enhancement jobs; never clear the global queue.
+      busy=true;at("enhance").disabled=true;
+      try{
+        const id=activeBatchId;
+        const response=await api.fetchApi(
+          "/enhanced_llm/batch/"+encodeURIComponent(id)+"/cancel",{method:"POST"});
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.error||"HTTP "+response.status);
+        if(poll){clearInterval(poll);poll=null;}
+        activeBatchId=null;
+        const progress=summarizeBatch(data.jobs);
+        showButton(progress.completed,progress.total,false);
+        status("");
+      }catch(err){status("Cancel failed: "+err.message);}
+      finally{busy=false;at("enhance").disabled=false;}
+      return;
+    }
     if(!at("prompt").value.trim())return status("Enter an original prompt.");
     if(!at("instructions").value.trim())return status("Select or enter an enhancement preset.");
     if(!node.inputs?.some(i=>i.name==="clip"&&i.link!=null))
       return status("Connect a text-generation CLIP model.");
     busy=true;at("enhance").disabled=true;
+    status("");
+    showButton(0,count,true);
     try{
       const snapshot=await app.graphToPrompt();
       const response=await api.fetchApi("/enhanced_llm/queue",{
@@ -346,10 +397,13 @@ function attach(node) {
       });
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"HTTP "+response.status);
-      lastBatch=data.batch_id;status("Queued "+count+" enhancement(s).");
-      monitorBatch(lastBatch);
-    }catch(err){status("Queue failed: "+err.message);}
-    finally{busy=false;at("enhance").disabled=false;}
+      activeBatchId=data.batch_id;
+      showButton(0,count,true);
+      monitorBatch(activeBatchId);
+    }catch(err){
+      showButton();
+      status("Queue failed: "+err.message);
+    }finally{busy=false;at("enhance").disabled=false;}
   };
   const panel={
     updatePresets:renderPresets,
@@ -363,6 +417,10 @@ function attach(node) {
       const saved=String(get(node,"enhancement_text")||"");
       if(saved)at("instructions").value=saved;
       else selectPreset(get(node,"enhancement_preset_id")||DEFAULT_PRESETS[0].id);
+      at("jailbreak").value=String(get(node,"jailbreak_text")||"");
+      const isExpanded=node.properties?.enhancedLLMJailbreakOpen;
+      at("jailbreak-group").open=isExpanded==null
+        ? Boolean(at("jailbreak").value) : Boolean(isExpanded);
       restoreTextareaHeights();
     },
     executed(result){
@@ -377,7 +435,7 @@ function attach(node) {
   };
   PANELS.add(panel);
   node.__emlPanel=panel;
-  for(const id of ["prompt","enhanced_prompt","enhanced_thinking","enhancement_text",
+  for(const id of ["prompt","enhanced_prompt","enhanced_thinking","enhancement_text","jailbreak_text",
     "enhancement_preset_id","prompt_sets_json","prompt_cycle","cycle_seed",
     "queue_run_for_each","ui_action","enhancement_job_id","enhancement_index"]){
     const w=ownWidget(node,id);if(w)w.hidden=true;
@@ -398,7 +456,7 @@ function attach(node) {
   const requiredHeight=Number(node.computeSize?.()?.[1])||0;
   node.setSize?.([
     Math.max(node.size?.[0]||0,565),
-    Math.max(node.size?.[1]||0,requiredHeight+12,960)
+    Math.max(node.size?.[1]||0,requiredHeight+12,920)
   ]);
   if(typeof ResizeObserver!=="undefined"){
     textareaObserver=new ResizeObserver(entries=>{

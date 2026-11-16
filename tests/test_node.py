@@ -98,6 +98,7 @@ def test_schema_hides_duplicate_system_prompt_and_adds_llm_seed_socket():
     ids = [field.id for field in schema.inputs]
     assert "system_prompt" not in ids
     assert "enhancement_text" in ids
+    assert "jailbreak_text" in ids
     assert "llm_seed" in ids
     assert "enhancement_index" in ids
     seed_input = next(field for field in schema.inputs if field.id == "llm_seed")
@@ -126,3 +127,36 @@ def test_optional_llm_seed_overrides_native_seed_without_mutating_widget():
         ui_action="enhance", sampling_mode=original,
     )
     assert calls[-1]["sampling_mode"]["seed"] == 5
+
+
+def test_optional_jailbreak_prefix_precedes_preset_only_during_enhancement():
+    calls = []
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return NodeOutput("updated image prompt", "")
+    module.TextGenerateV2.execute = fake_generate
+
+    original_preset = "Preserve the composition and style."
+    module.EnhancedGenerateText.execute(
+        clip=object(), prompt="an image of a tree", enhancement_text=original_preset,
+        jailbreak_text="  Additional custom instructions.  ",
+        ui_action="enhance", sampling_mode={"sampling_mode":"on", "seed":17},
+    )
+    assert calls[-1]["system_prompt"] == (
+        "Additional custom instructions.\n\n" + original_preset
+    )
+    assert calls[-1]["prompt"] == "an image of a tree"
+
+    module.EnhancedGenerateText.execute(
+        clip=object(), prompt="a cat", enhancement_text=original_preset,
+        jailbreak_text="   ", ui_action="enhance",
+    )
+    assert calls[-1]["system_prompt"] == original_preset
+    calls_before = len(calls)
+
+    result = module.EnhancedGenerateText.execute(
+        prompt="original", enhanced_prompt="stored", enhancement_text=original_preset,
+        jailbreak_text="Prefix", ui_action="pass", clip=None,
+    )
+    assert result.args[0] == "stored"
+    assert len(calls) == calls_before

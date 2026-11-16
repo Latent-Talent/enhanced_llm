@@ -15,10 +15,10 @@ Requires a recent ComfyUI containing TextGenerateV2 and ComfyUI V3 custom node s
 
 1. Connect a text-generation CLIP model to the node.
 2. Enter an original prompt.
-3. Select (or edit) an Enhancement Preset, whose text is supplied as the LLM system prompt.
+3. Select (or edit) an Enhancement Preset, whose text is supplied as the LLM system prompt. Optionally expand **Jailbreak** to prepend a separate custom instruction block before those preset instructions.
 4. Choose an enhancement count from 1 to 32.
 5. Set **Queue Run for Each** (default Off).
-6. Click Enhance Prompt. Each enhancement is queued as a partial graph run consisting of the node and its upstream dependencies.
+6. Click Enhance Prompt. Each enhancement is queued as a partial graph run consisting of the node and its upstream dependencies. The button displays progress (`Cancel · 2/5` while running; `Enhance Prompt · 5/5` when done). Click Cancel to cancel outstanding jobs from this enhancement batch only.
 7. Result text is appended to the active prompt set.
 8. With the toggle On, every successful enhancement automatically queues ONE full workflow using that specific result. The full run joins ComfyUI's standard queue, does not skip other queued jobs, and does not run the enhancement LLM again.
 
@@ -26,14 +26,14 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 
 ## Interface
 
-- Original prompt and Enhance Prompt count/action.
+- Original prompt and Enhance Prompt count/action, with `x/y` progress displayed directly on the button and no persistent status footer. The button becomes **Cancel** while enhancements remain; cancellation targets only the active batch and leaves already queued full runs intact.
 - **Queue Run for Each**: a visible on/off switch directly beneath Enhance Prompt; off by default. Exactly one full workflow per successful enhancement when enabled; never for failed enhancements.
-- Enhanced prompt textarea, browsing, removal, undo/redo and clear. Resizing any of the three textareas also resizes the node vertically, and field heights are saved with the workflow.
+- Enhanced prompt textarea, browsing, removal, undo/redo and clear. Resizing any visible textarea also adjusts the node height, and field heights are saved with the workflow.
 - Prompt sets: save/rename, create, select, delete; stored in the ComfyUI workflow JSON.
 - Prompt cycle: fixed, increment, decrement, shuffle and random.
 - Shuffle and Random choose randomness automatically in the background. Shuffle visits every prompt once per shuffled cycle; the native LLM seed remains a separate generation control.
 - Enhancement presets: 19 protected defaults grouped by Krea 2, MiniMax H3, and MOSS-Image, plus editable/savable user presets.
-- The redundant native `system_prompt` input is removed: the Enhancement Preset text is the sole system prompt used for enhancement.
+- The redundant native `system_prompt` input is removed: enhancement instructions are supplied by the chosen Enhancement Preset, optionally preceded by **Jailbreak** text. This optional prefix is stored as its own workflow input and does not overwrite a protected/default or user-created preset.
 - The native sampling `seed` widget remains available. An optional `llm_seed` INT socket overrides it when connected; the requested enhancement batch advances the effective LLM seed for distinct samples. Prompt Cycle Random/Shuffle use independent automatic randomness.
 
 ### Factory presets

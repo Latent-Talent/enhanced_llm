@@ -67,3 +67,18 @@ test("invalid dimensions and initial observers do not resize", () => {
   assert.equal(controller.observedHeight("not_a_field", 200), false);
   assert.equal(node.changes.length, 0);
 });
+
+test("revealing optional jailbreak textarea grows node; hiding restores it",()=>{
+  const node=makeNode();
+  controller=createTextareaResizeController(node);
+  assert.equal(controller.observedHeight("jailbreak",88),false);
+  assert.equal(controller.setJailbreakVisible(true),true);
+  assert.equal(node.size[1],976);
+  assert.equal(controller.observedHeight("jailbreak",88),false);
+  assert.equal(controller.observedHeight("jailbreak",128),true);
+  assert.equal(node.size[1],1016);
+  assert.equal(node.properties[HEIGHT_PROPERTY].jailbreak,128);
+  assert.equal(controller.setJailbreakVisible(false),true);
+  assert.equal(node.size[1],880);
+  assert.equal(controller.observedHeight("jailbreak",170),false);
+});

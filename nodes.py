@@ -29,6 +29,7 @@ class EnhancedGenerateText(io.ComfyNode):
                     io.String.Input("enhanced_prompt", multiline=True, default=""),
                     io.String.Input("enhanced_thinking", multiline=True, default=""),
                     io.String.Input("enhancement_text", multiline=True, default=""),
+                    io.String.Input("jailbreak_text", multiline=True, default=""),
                     io.Int.Input("llm_seed", optional=True, force_input=True,
                                  min=0, max=0xffffffffffffffff,
                                  tooltip="Optional INT socket overriding the native sampling seed for LLM generation."),
@@ -60,7 +61,7 @@ class EnhancedGenerateText(io.ComfyNode):
 
     @classmethod
     def execute(cls, clip=None, prompt="", max_length=512, sampling_mode=None,
-                enhanced_prompt="", enhanced_thinking="", enhancement_text="",
+                enhanced_prompt="", enhanced_thinking="", enhancement_text="", jailbreak_text="",
                 enhancement_preset_id="default:krea2", prompt_sets_json="",
                 prompt_cycle="fixed", cycle_seed=0, queue_run_for_each=False,
                 ui_action="pass", enhancement_job_id="",
@@ -79,6 +80,11 @@ class EnhancedGenerateText(io.ComfyNode):
         instructions = enhancement_text.strip()
         if not instructions:
             raise ValueError("Select or enter a nonempty enhancement system prompt.")
+        # Optional instructions precede the selected preset in the LLM system prompt.
+        # They do not alter the saved preset or the original user prompt.
+        prefix = (jailbreak_text or "").strip()
+        if prefix:
+            instructions = prefix + "\n\n" + instructions
 
         sampling = dict(sampling_mode or {"sampling_mode": "on"})
         if llm_seed is not None:

@@ -7,8 +7,8 @@
   height: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 6px 7px 9px;
+  gap: 6px;
+  padding: 5px 7px 6px;
   overflow: visible;
   color: var(--fg-color, #e6e6e6);
   font: 12px/1.35 system-ui, -apple-system, sans-serif;
@@ -81,7 +81,15 @@
   background: #35ab50;
   border-color: #35ab50;
 }
-.eml-enhance-row, .eml-results-row { gap: 6px; }
+.eml-enhance-row, .eml-results-row { gap: 5px; }
+.eml-toolbar button.eml-primary.eml-cancel {
+  background: #9b443d;
+  border-color: #9b443d;
+}
+.eml-toolbar button.eml-primary.eml-cancel:hover:not(:disabled) {
+  background: #b34c42;
+  border-color: #b34c42;
+}
 .eml-counter {
   display: inline-flex;
   align-items: center;
@@ -191,10 +199,30 @@
 .eml-preset-row label { flex-basis: 116px; width: 116px; }
 .eml-preset-row button { padding-inline: 7px; }
 .eml-divider { height: 1px; background: #454950; margin: 2px 0 1px; }
+.eml-jailbreak {
+  border-top: 1px solid #454950;
+  padding-top: 3px;
+}
+.eml-jailbreak summary {
+  cursor: pointer;
+  padding: 4px 2px;
+  min-height: 22px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #bdc7d3;
+  user-select: none;
+}
+.eml-jailbreak[open] summary { margin-bottom: 5px; }
+.eml-jailbreak textarea { width: 100%; }
+.eml-status[hidden] { display: none !important; }
 .eml-status {
-  min-height: 17px;
-  color: #b5bec9;
+  padding: 5px 7px;
+  border: 1px solid #80514d;
+  border-radius: 5px;
+  background: #3a2b29;
+  color: #f1c1b8;
   font-size: 11px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 .eml-rename[hidden] { display: none; }

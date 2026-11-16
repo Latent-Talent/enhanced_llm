@@ -32,3 +32,20 @@ test("buttons are scoped, evenly sized, and content does not shrink",()=>{
   assert.match(css, /min-height:\s*30px/);
   assert.match(css, /\.eml-panel > \* \{\s*flex-shrink: 0/);
 });
+
+test("enhancement progress is in the button and the permanent footer is removed",()=>{
+  assert.match(ui, /buttonLabel\(done,total,running\)/);
+  assert.match(ui, /summarizeBatch\(data\.jobs\)/);
+  assert.ok(ui.includes('"/enhanced_llm/batch/"+encodeURIComponent(id)+"/cancel"'));
+  assert.doesNotMatch(ui, /full runs queued /);
+  assert.match(ui, /data-eml="status" role="alert" aria-live="polite" hidden/);
+  assert.match(css, /\.eml-status\[hidden\] \{ display: none !important; \}/);
+});
+test("optional jailbreak textarea is workflow-backed and collapsible",()=>{
+  assert.match(ui, /Jailbreak \(optional\)/);
+  assert.match(ui, /data-eml="jailbreak" rows="3"/);
+  assert.match(ui, /set\(node,"jailbreak_text",at\("jailbreak"\)\.value\)/);
+  assert.match(ui, /at\("jailbreak"\)\.value=String\(get\(node,"jailbreak_text"\)\|\|""\)/);
+  assert.match(ui, /resize\.setJailbreakVisible\(open\)/);
+  assert.match(css, /\.eml-jailbreak summary/);
+});

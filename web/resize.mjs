@@ -4,8 +4,9 @@ export const TEXTAREA_HEIGHTS = Object.freeze({
   prompt: 96,
   enhanced: 116,
   instructions: 116,
+  jailbreak: 88,
 });
-export const BASE_PANEL_HEIGHT = 660;
+export const BASE_PANEL_HEIGHT = 640;
 export const HEIGHT_PROPERTY = "enhancedLLMTextHeights";
 
 function normalizeHeight(value, fallback) {
@@ -18,9 +19,11 @@ function normalizeHeight(value, fallback) {
 export function createTextareaResizeController(node) {
   const sizes = {...TEXTAREA_HEIGHTS};
   const observed = new Set();
+  let jailbreakVisible = false;
 
-  function restore(saved) {
+  function restore(saved, showJailbreak = false) {
     observed.clear();
+    jailbreakVisible = !!showJailbreak;
     for (const [key, fallback] of Object.entries(TEXTAREA_HEIGHTS)) {
       sizes[key] = normalizeHeight(saved?.[key], fallback);
     }
@@ -28,13 +31,30 @@ export function createTextareaResizeController(node) {
 
   function minHeight() {
     const additional = Object.entries(TEXTAREA_HEIGHTS).reduce(
-      (total, [key, baseline]) => total + sizes[key] - baseline, 0
+      (total, [key, baseline]) => total +
+        (key === "jailbreak" ? (jailbreakVisible ? sizes[key] + 8 : 0) : sizes[key] - baseline),
+      0
     );
     return Math.max(460, Math.ceil(BASE_PANEL_HEIGHT + additional));
   }
 
+  function setJailbreakVisible(visible) {
+    visible = !!visible;
+    if (jailbreakVisible === visible) return false;
+    const previous = minHeight();
+    jailbreakVisible = visible;
+    observed.delete("jailbreak"); // fresh DOM measurement when reopened
+    const delta = minHeight() - previous;
+    const width = Number(node.size?.[0]) || 565;
+    const height = Number(node.size?.[1]) || 880;
+    const required = Number(node.computeSize?.()?.[1]) || 0;
+    node.setSize?.([width, Math.max(required, height + delta)]);
+    node.setDirtyCanvas?.(true, true);
+    return true;
+  }
+
   function observedHeight(key, height) {
-    if (!(key in TEXTAREA_HEIGHTS)) return false;
+    if (!(key in TEXTAREA_HEIGHTS) || (key === "jailbreak" && !jailbreakVisible)) return false;
     const next = normalizeHeight(height, sizes[key]);
     const previous = sizes[key];
     sizes[key] = next;
@@ -70,6 +90,7 @@ export function createTextareaResizeController(node) {
     restore,
     minHeight,
     observedHeight,
+    setJailbreakVisible,
     size: key => sizes[key],
   };
 }

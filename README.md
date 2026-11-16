@@ -27,11 +27,11 @@ The node's normal workflow execution is pass-through: it outputs the selected en
 ## Interface
 
 - Original prompt and Enhance Prompt count/action.
-- **Queue Run for Each**: exactly one full workflow per successful enhancement; never for failed enhancements.
-- Enhanced prompt textarea, browsing, removal, undo/redo and clear.
+- **Queue Run for Each**: a visible on/off switch directly beneath Enhance Prompt; off by default. Exactly one full workflow per successful enhancement when enabled; never for failed enhancements.
+- Enhanced prompt textarea, browsing, removal, undo/redo and clear. Resizing any of the three textareas also resizes the node vertically, and field heights are saved with the workflow.
 - Prompt sets: save/rename, create, select, delete; stored in the ComfyUI workflow JSON.
 - Prompt cycle: fixed, increment, decrement, shuffle and random.
-- Cycle seed: independent of the LLM sampling seed. Shuffle and random are deterministic.
+- Shuffle and Random choose randomness automatically in the background. Shuffle visits every prompt once per shuffled cycle; the native LLM seed remains a separate generation control.
 - Enhancement presets: three protected defaults plus editable/savable user presets.
 
 ### Factory presets

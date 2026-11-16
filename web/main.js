@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { MODES, nextIndex, shuffledIndices, hash32 } from "./cycle.mjs";
+import { MODES, nextIndex } from "./cycle.mjs";
+import { createTextareaResizeController, HEIGHT_PROPERTY, TEXTAREA_HEIGHTS } from "./resize.mjs";
 import { DEFAULT_PRESETS, isDefaultPreset, getPreset, validateUserPresets } from "./presets.mjs";
 
 const NODE = "LatentTalentEnhancedGenerateText";
@@ -41,7 +42,17 @@ async function writePresets(next) {
   userPresets=normalized;presetsLoaded=true;
   for(const panel of PANELS)panel.updatePresets();
 }
-const fresh=()=>({version:1,sets:[{name:"Unsaved",items:[],step:0}],active:0,index:0});
+function automaticSeed() {
+  // Secure randomness when available, Math.random fallback for LAN HTTP
+  // contexts. The cycle seed is intentionally not exposed to the user.
+  if (globalThis.crypto?.getRandomValues) {
+    const words = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(words);
+    return words[0];
+  }
+  return (Math.random() * 0x100000000) >>> 0;
+}
+const fresh=()=>({version:1,sets:[{name:"Unsaved",items:[],step:0,shuffleSeed:0}],active:0,index:0});
 function parseState(raw) {
   try{
     const x=typeof raw==="string"?JSON.parse(raw):raw;
@@ -52,7 +63,8 @@ function parseState(raw) {
         text:String(v?.text??"").slice(0,100000),
         thinking:String(v?.thinking??"").slice(0,100000)
       })),
-      step:Math.max(0,Math.floor(Number(s?.step)||0))
+      step:Math.max(0,Math.floor(Number(s?.step)||0)),
+      shuffleSeed:(Number(s?.shuffleSeed)||0)>>>0
     }));
     const active=Math.max(0,Math.min(sets.length-1,Math.floor(Number(x.active)||0)));
     const index=Math.max(0,Math.min(sets[active].items.length-1,Math.floor(Number(x.index)||0)));
@@ -74,23 +86,32 @@ function attach(node) {
   stylesheet();
   const root=document.createElement("section");
   root.className="eml-panel";
+  const resize=createTextareaResizeController(node);
+  let textareaObserver=null;
+  function restoreTextareaHeights() {
+    resize.restore(node.properties?.[HEIGHT_PROPERTY]);
+    for (const key of Object.keys(TEXTAREA_HEIGHTS)) {
+      const input=field(root,key);
+      if(input)input.style.height=resize.size(key)+"px";
+    }
+  }
   // Static markup: user text and generated text only enter DOM via value/textContent.
   root.innerHTML=[
     '<textarea data-eml="prompt" rows="4" aria-label="Prompt" placeholder="prompt"></textarea>',
-    '<div class="eml-row eml-toolbar"><button class="eml-primary" data-eml="enhance" title="Run only upstream inputs and the connected LLM">Enhance Prompt</button>',
+    '<div class="eml-row eml-toolbar eml-enhance-row"><button class="eml-primary" data-eml="enhance" title="Run only upstream inputs and the connected LLM">Enhance Prompt</button>',
     '<span class="eml-counter"><button data-eml="minus" title="Fewer enhancements">−</button><span data-eml="count">1</span><button data-eml="plus" title="More enhancements">+</button></span>',
     '<button data-eml="promote" title="Copy enhanced text into original prompt">↑</button><button data-eml="undo1">Undo</button></div>',
-    '<div class="eml-toggle"><label for="eml-toggle" title="Automatically queue one full workflow run for each successfully generated enhanced prompt">Queue Run for Each</label>',
-    '<input data-eml="run-each" type="checkbox" aria-label="Queue Run for Each" title="Automatically queue one full workflow run for each successfully generated enhanced prompt"></div>',
+    '<label class="eml-toggle" title="Queue one full workflow run for each successful enhancement">',
+    '<span class="eml-toggle-name">Queue Run for Each</span>',
+    '<span class="eml-toggle-control"><input data-eml="run-each" type="checkbox" role="switch" aria-label="Queue Run for Each"><span class="eml-switch-track" aria-hidden="true"></span></span></label>',
     '<textarea data-eml="enhanced" rows="5" aria-label="Enhanced prompt" placeholder="enhanced_prompt"></textarea>',
-    '<div class="eml-row eml-toolbar"><span class="eml-counter"><button data-eml="prev">−</button><span data-eml="position">0 / 0</span><button data-eml="next">+</button></span>',
+    '<div class="eml-row eml-toolbar eml-results-row"><span class="eml-counter"><button data-eml="prev">−</button><span data-eml="position">0 / 0</span><button data-eml="next">+</button></span>',
     '<button data-eml="remove" title="Remove selected result">×</button><button data-eml="undo">Undo</button><button data-eml="redo">Redo</button><button data-eml="clear">Clear All</button></div>',
-    '<div class="eml-row"><label>Prompt Set</label><button data-eml="save-set" title="Save or rename set">Save</button><button data-eml="new-set" title="New empty prompt set">+</button>',
+    '<div class="eml-row eml-setting eml-set-row"><label>Prompt Set</label><button data-eml="save-set" title="Save or rename set">Save</button><button data-eml="new-set" title="New empty prompt set">+</button>',
     '<select data-eml="sets" aria-label="Prompt Set"></select><button data-eml="delete-set" title="Delete selected set">×</button></div>',
-    '<div class="eml-row"><label>Prompt Cycle</label><select data-eml="cycle" aria-label="Prompt Cycle"></select></div>',
-    '<div class="eml-row"><label>Cycle Seed</label><input data-eml="cycle-seed" type="number" min="0" max="2147483647" step="1"></div>',
+    '<div class="eml-row eml-setting eml-cycle-row"><label>Prompt Cycle</label><select data-eml="cycle" aria-label="Prompt Cycle"></select></div>',
     '<div class="eml-divider"></div>',
-    '<div class="eml-row"><label>Enhancement Preset</label><button data-eml="save-preset" title="Save user preset">Save</button>',
+    '<div class="eml-row eml-setting eml-preset-row"><label>Enhancement Preset</label><button data-eml="save-preset" title="Save user preset">Save</button>',
     '<button data-eml="save-as" title="Save as new preset">Save As</button><select data-eml="presets" aria-label="Enhancement Preset"></select>',
     '<button data-eml="delete-preset" title="Delete user preset">×</button></div>',
     '<textarea data-eml="instructions" rows="5" aria-label="Enhancement system prompt" placeholder="enhancement_text"></textarea>',
@@ -126,12 +147,18 @@ function attach(node) {
     at("delete-set").disabled=state.sets.length===1;
     renderSelection();
   }
-  const seed=()=>Math.floor(Number(get(node,"cycle_seed"))||0)>>>0;
   function advanceCycle(){
-    const items=current().items,n=items.length,mode=get(node,"prompt_cycle")||"fixed";
+    const set=current(),n=set.items.length,mode=get(node,"prompt_cycle")||"fixed";
     if(!n||mode==="fixed")return;
-    state.index=nextIndex(mode,state.index,n,seed(),current().step);
-    current().step+=1;
+    if(mode==="shuffle"){
+      if(set.step%n===0 || !set.shuffleSeed)set.shuffleSeed=automaticSeed();
+      state.index=nextIndex("shuffle",state.index,n,set.shuffleSeed,set.step);
+    }else if(mode==="random"){
+      state.index=nextIndex("random",state.index,n,automaticSeed(),0);
+    }else{
+      state.index=nextIndex(mode,state.index,n,0,set.step);
+    }
+    set.step+=1;
     renderSelection();
   }
   function restore(stack,other){
@@ -217,7 +244,7 @@ function attach(node) {
   at("redo").onclick=()=>restore(redo,undo);
   at("save-set").onclick=()=>showRename("set");
   at("new-set").onclick=()=>{
-    remember();state.sets.push({name:"Unsaved "+(state.sets.length+1),items:[],step:0});
+    remember();state.sets.push({name:"Unsaved "+(state.sets.length+1),items:[],step:0,shuffleSeed:0});
     state.active=state.sets.length-1;state.index=0;renderSets();
   };
   at("delete-set").onclick=()=>{
@@ -232,16 +259,14 @@ function attach(node) {
     const mode=at("cycle").value;set(node,"prompt_cycle",mode);
     current().step=0;
     if(current().items.length&&mode==="shuffle"){
-      state.index=shuffledIndices(current().items.length,seed())[0];current().step=1;
+      current().shuffleSeed=automaticSeed();
+      state.index=nextIndex("shuffle",0,current().items.length,current().shuffleSeed,0);
+      current().step=1;
     }else if(current().items.length&&mode==="random"){
-      state.index=hash32(seed(),0)%current().items.length;current().step=1;
+      state.index=nextIndex("random",0,current().items.length,automaticSeed(),0);
+      current().step=1;
     }
     renderSelection();
-  };
-  at("cycle-seed").onchange=()=>{
-    const value=Math.max(0,Math.min(2147483647,Math.floor(Number(at("cycle-seed").value)||0)));
-    at("cycle-seed").value=String(value);set(node,"cycle_seed",value);
-    current().step=0;persist();
   };
   at("presets").onchange=()=>selectPreset(at("presets").value);
   at("save-preset").onclick=async()=>{
@@ -318,12 +343,12 @@ function attach(node) {
       state=parseState(get(node,"prompt_sets_json"));
       at("prompt").value=String(get(node,"prompt")||"");
       at("cycle").value=String(get(node,"prompt_cycle")||"fixed");
-      at("cycle-seed").value=String(get(node,"cycle_seed")??0);
       at("run-each").checked=Boolean(get(node,"queue_run_for_each"));
       renderSets();renderPresets();
       const saved=String(get(node,"enhancement_text")||"");
       if(saved)at("instructions").value=saved;
       else selectPreset(get(node,"enhancement_preset_id")||DEFAULT_PRESETS[0].id);
+      restoreTextareaHeights();
     },
     executed(result){
       const records=result?.enhanced_llm;
@@ -331,6 +356,7 @@ function attach(node) {
     },
     destroy(){
       if(poll)clearInterval(poll);
+      textareaObserver?.disconnect();
       PANELS.delete(panel);
     }
   };
@@ -342,7 +368,10 @@ function attach(node) {
     const w=ownWidget(node,id);if(w)w.hidden=true;
   }
   const dom=node.addDOMWidget("enhanced_llm_panel","div",root,{
-    serialize:false,hideOnZoom:false,getMinWidth:()=>470,getMinHeight:()=>630,getHeight:()=>630
+    serialize:false,hideOnZoom:false,
+    getMinWidth:()=>480,
+    getMinHeight:()=>resize.minHeight(),
+    getHeight:()=>resize.minHeight()
   });
   dom.serialize=false;
   // DOM widget first, followed by ComfyUI's native sampling and MTP controls.
@@ -350,8 +379,24 @@ function attach(node) {
   if(index>=0){node.widgets.splice(index,1);node.widgets.unshift(dom);}
   const w=ownWidget(node,"enhanced_prompt");
   if(w)w.afterQueued=advanceCycle; // only native full-workflow queue advances
-  node.setSize?.([Math.max(node.size?.[0]||0,565),Math.max(node.size?.[1]||0,880)]);
   panel.hydrate();
+  const requiredHeight=Number(node.computeSize?.()?.[1])||0;
+  node.setSize?.([
+    Math.max(node.size?.[0]||0,565),
+    Math.max(node.size?.[1]||0,requiredHeight+12,960)
+  ]);
+  if(typeof ResizeObserver!=="undefined"){
+    textareaObserver=new ResizeObserver(entries=>{
+      for(const entry of entries){
+        const key=entry.target.dataset.eml;
+        if(key in TEXTAREA_HEIGHTS)resize.observedHeight(key,entry.target.offsetHeight);
+      }
+    });
+    for(const key of Object.keys(TEXTAREA_HEIGHTS)) {
+      const input=at(key);
+      if(input)textareaObserver.observe(input);
+    }
+  }
   const prevConfigure=node.onConfigure;
   node.onConfigure=function(...args){
     const result=prevConfigure?.apply(this,args);

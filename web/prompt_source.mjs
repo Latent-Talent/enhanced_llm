@@ -19,3 +19,13 @@ export function canEnhancePrompt(node, text) {
   if(usesPromptInput(node)) return false;
   return typeof text==="string" && Boolean(text.trim());
 }
+
+
+// LiteGraph input slot position (local node units) for the DOM Prompt row.
+// .eml-panel is positioned, so offsetTop is relative to the panel; panelY
+// comes from the actual native DOM widget and is already in node units.
+export function promptSlotPosition(panelY,rowTop,rowHeight) {
+  const a=Number(panelY), b=Number(rowTop), c=Number(rowHeight);
+  if(!Number.isFinite(a) || !Number.isFinite(b) || !(c>0) || !Number.isFinite(c))return null;
+  return [10,a+b+c/2];
+}

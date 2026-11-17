@@ -97,3 +97,17 @@ test("native ComfyUI status events trigger queue-aware enhancement refreshes",()
   assert.match(ui,/activeStatusRefresh\?\.\(\)/);
   assert.match(ui,/progress\.active>0/);
 });
+
+
+test("Prompt textarea fully disappears and native socket follows Prompt header",()=>{
+  assert.match(ui,/data-eml="prompt-source"/);
+  assert.match(ui,/at\("prompt"\)\.hidden=inputMode/);
+  assert.doesNotMatch(ui,/data-eml="prompt-input-hint"/);
+  assert.match(ui,/slot\.pos=pos/);
+  assert.match(ui,/promptWidget\.y=pos\[1\]-10/);
+  assert.match(ui,/promptSlotPosition\(panel\.y,label\.offsetTop,label\.offsetHeight\)/);
+  assert.match(ui,/slot\.alwaysVisible=usesPromptInput\(node\)/);
+  assert.match(ui,/node\.arrange=function/);
+  assert.match(css,/position:\s*relative/);
+  assert.match(css,/textarea\[data-eml="prompt"\]\[hidden\] \{ display: none !important; \}/);
+});

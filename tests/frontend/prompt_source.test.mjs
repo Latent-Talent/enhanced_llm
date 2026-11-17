@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {promptInputSlot,usesPromptInput,canEnhancePrompt} from "../../web/prompt_source.mjs";
+import {promptInputSlot,usesPromptInput,canEnhancePrompt,promptSlotPosition} from "../../web/prompt_source.mjs";
 
 const node=(link=null,inputMode=false)=>({
   inputs:[{name:"clip",link:1},{name:"prompt",link}],
@@ -31,4 +31,12 @@ test("text fallback and explicit input mode without a connection",()=>{
 test("no socket does not throw",()=>{
   assert.deepEqual(promptInputSlot({inputs:[]}),{index:-1,connected:false});
   assert.equal(canEnhancePrompt({inputs:[]},"typed text"),true);
+});
+
+
+test("native input socket is aligned with Prompt row after any panel position change",()=>{
+  assert.deepEqual(promptSlotPosition(165,12,28),[10,191]);
+  assert.deepEqual(promptSlotPosition(188,40,28),[10,242]);
+  assert.equal(promptSlotPosition(undefined,0,28),null);
+  assert.equal(promptSlotPosition(165,0,0),null);
 });

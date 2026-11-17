@@ -4,7 +4,7 @@ import { MODES, nextIndex } from "./cycle.mjs";
 import { summarizeBatch, buttonLabel } from "./progress.mjs";
 import { SAMPLING_PRESETS, applySamplingPreset, matchingSamplingPreset } from "./sampling.mjs";
 import { createTextareaResizeController, HEIGHT_PROPERTY, TEXTAREA_HEIGHTS } from "./resize.mjs";
-import { promptInputSlot, usesPromptInput, canEnhancePrompt } from "./prompt_source.mjs";
+import { promptInputSlot, usesPromptInput, canEnhancePrompt, promptSlotPosition } from "./prompt_source.mjs";
 import { DEFAULT_PRESETS, isDefaultPreset, getPreset, validateUserPresets } from "./presets.mjs";
 
 const NODE = "LatentTalentEnhancedGenerateText";
@@ -103,19 +103,37 @@ function attach(node) {
     },160);
   };
   api.addEventListener?.("status",nativeQueueChanged);
+  // The hidden prompt widget still has a native STRING socket. Anchor the
+  // socket at the visible Prompt header instead of its stale native row.
+  function alignPromptSocket(){
+    const {index}=promptInputSlot(node);
+    const slot=node.inputs?.[index];
+    const panel=node.widgets?.find(w=>w.name==="enhanced_llm_panel");
+    const label=at("prompt-source");
+    if(!slot || !label || !panel)return;
+    const pos=promptSlotPosition(panel.y,label.offsetTop,label.offsetHeight);
+    if(pos){
+      const promptWidget=ownWidget(node,"prompt");
+      // Native slot arrangement derives the position from the input's
+      // widget.y, so update both to prevent a layout feedback loop.
+      if(promptWidget) promptWidget.y=pos[1]-10;
+      if(!slot.pos || Math.abs(slot.pos[0]-pos[0])>0.25 ||
+         Math.abs(slot.pos[1]-pos[1])>0.25) slot.pos=pos;
+    }
+    slot.alwaysVisible=usesPromptInput(node);
+  }
   function refreshPromptSource(){
     const slot=promptInputSlot(node);
     const inputMode=usesPromptInput(node);
+    // Native-style conversion: completely hide the editable textarea.
     at("prompt").hidden=inputMode;
-    at("prompt-input-hint").hidden=!inputMode;
+    at("prompt-source").classList.toggle("eml-connected-prompt",inputMode);
     at("prompt-mode").textContent=inputMode?"Use Text":"Use Input";
     at("prompt-mode").title=inputMode
       ?"Disconnect the prompt input (if connected) and edit the original text"
       :"Replace the prompt text box with a connectable STRING input";
-    at("prompt-input-hint").textContent=slot.connected
-      ?"Connected STRING input: prompt will come from the upstream node."
-      :"Connect a STRING output to the 'prompt' socket on the left of this node.";
     at("prompt-mode").disabled=slot.index<0;
+    alignPromptSocket();
     // A connected slot is the authority. Never copy its value into prompt's
     // stored text, which is the fallback if the connection is removed.
   }
@@ -145,9 +163,8 @@ function attach(node) {
   }
   // Static markup: user text and generated text only enter DOM via value/textContent.
   root.innerHTML=[
-    '<div class="eml-row eml-prompt-source"><span>Prompt</span><button type="button" data-eml="prompt-mode" title="Replace prompt text with STRING input">Use Input</button></div>',
+    '<div class="eml-row eml-prompt-source" data-eml="prompt-source"><span>Prompt</span><button type="button" data-eml="prompt-mode" title="Replace prompt text with STRING input">Use Input</button></div>',
     '<textarea data-eml="prompt" rows="4" aria-label="Prompt" placeholder="prompt"></textarea>',
-    '<div class="eml-prompt-input-hint" data-eml="prompt-input-hint" hidden role="status">Connect a STRING output to the prompt input socket.</div>',
     '<div class="eml-row eml-toolbar eml-enhance-row"><button class="eml-primary" data-eml="enhance" title="Run only upstream inputs and the connected LLM">Enhance</button>',
     '<span class="eml-counter"><button data-eml="minus" title="Fewer enhancements">−</button><span data-eml="count">1</span><button data-eml="plus" title="More enhancements">+</button></span>',
     '<button data-eml="promote" title="Copy enhanced text into original prompt">↑</button><button data-eml="undo1">Undo</button></div>',
@@ -625,11 +642,22 @@ function attach(node) {
   // DOM widget first, followed by ComfyUI's native sampling and MTP controls.
   const index=node.widgets.indexOf(dom);
   if(index>=0){node.widgets.splice(index,1);node.widgets.unshift(dom);}
+  // Native node arrangement otherwise places the hidden prompt socket at
+  // its original row. Re-anchor after computing visible DOM widget geometry.
+  const previousArrange=node.arrange;
+  if(typeof previousArrange==="function"){
+    node.arrange=function(...args){
+      const result=previousArrange.apply(this,args);
+      alignPromptSocket();
+      return result;
+    };
+  }
   const w=ownWidget(node,"enhanced_prompt");
   if(w)w.afterQueued=({isPartialExecution}={})=>{
     if(!isPartialExecution)advanceCycle();
   }; // partial enhancement queuing must not advance result cycling
   panel.hydrate();
+  alignPromptSocket();
   const requiredHeight=Number(node.computeSize?.()?.[1])||0;
   node.setSize?.([
     Math.max(node.size?.[0]||0,565),
@@ -659,6 +687,16 @@ function attach(node) {
     queueMicrotask(refreshPromptSource);
     return result;
   };
+  // The UI can mount after initial node layout or change width/zoom later.
+  if(typeof ResizeObserver!=="undefined"){
+    const promptObserver=new ResizeObserver(alignPromptSocket);
+    promptObserver.observe(at("prompt-source"));
+    const oldDestroy=panel.destroy;
+    panel.destroy=function(){
+      promptObserver.disconnect();
+      oldDestroy();
+    };
+  }
   const prevExecuted=node.onExecuted;
   node.onExecuted=function(...args){
     prevExecuted?.apply(this,args);

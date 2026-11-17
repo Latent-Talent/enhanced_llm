@@ -77,3 +77,14 @@ test("LLM sampling presets modify native widgets and show descriptive help",()=>
   assert.match(ui,/outcome\.skipped\.join/);
   assert.match(css,/\.eml-sampler-help/);
 });
+
+
+test("prompt can switch between editable text and the native STRING socket",()=>{
+  assert.match(ui,/data-eml="prompt-mode"/);
+  assert.match(ui,/promptInputSlot\(node\)/);
+  assert.match(ui,/node\.disconnectInput\(slot\.index\)/);
+  assert.match(ui,/refreshPromptSource\(\)/);
+  assert.match(ui,/canEnhancePrompt\(node,at\("prompt"\)\.value\)/);
+  assert.match(ui,/node\.onConnectionsChange=function/);
+  assert.match(css,/\.eml-panel textarea\[data-eml="prompt"\]\[hidden\]/);
+});

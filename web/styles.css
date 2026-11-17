@@ -36,6 +36,20 @@
   outline-offset: -2px;
 }
 .eml-panel textarea::placeholder { color: #969696; }
+.eml-prompt-source { justify-content: space-between; min-height: 28px; }
+.eml-prompt-source > span { font-weight: 650; }
+.eml-prompt-source button { min-height: 25px; font-size: 11px; }
+.eml-panel textarea[data-eml="prompt"][hidden] { display: none !important; }
+.eml-prompt-input-hint {
+  border: 1px solid var(--border-color, #50545a);
+  border-radius: 7px;
+  background: var(--comfy-input-bg, #242424);
+  padding: 14px 10px;
+  min-height: 62px;
+  color: var(--fg-color, #ddd);
+  line-height: 1.45;
+}
+.eml-prompt-input-hint[hidden] { display: none !important; }
 .eml-panel textarea:focus-visible,
 .eml-panel input:focus-visible,
 .eml-panel select:focus-visible,

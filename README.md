@@ -112,3 +112,22 @@ The server-side coordinator stays alive while ComfyUI is running and does not re
 ### Queue job naming
 
 ComfyUI's standard queue overlay does not currently expose a supported custom per-job title field. It renders generic pending/running statuses and completed filenames, so injecting a name into job metadata does not rename a queue row. A separate frontend queue integration would be needed for visible labels such as "Enhancement 1/5" and "Full Run 1/5"; this plugin does not monkey-patch ComfyUI's queue components.
+
+
+### Original prompt as a STRING input
+
+The Prompt field now has a **Use Input** button above its textarea. Select it
+to replace the editable textarea with an input hint, then connect any STRING
+output to the existing **prompt** socket on the left side of this node.
+ComfyUI's native input handling passes the connected text into both manual
+enhancement and normal pass-through workflows; no separate adapter or custom
+text input type is required.
+
+When a prompt input is connected, **Enhance** accepts it even if the stored
+textarea is empty. **Use Text** disconnects the wire and restores the saved
+textarea text. The **↑** Promote action also returns to text mode explicitly.
+The selected display mode is stored with the workflow.
+
+When **Queue Run for Each** is enabled, an automatically queued full run uses
+its generated enhanced text and removes the original prompt's upstream link in
+that *run's snapshot only*. The user's original connected graph remains unchanged.

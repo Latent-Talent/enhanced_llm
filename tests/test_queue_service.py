@@ -242,3 +242,32 @@ def test_enhancement_titles_include_batch_position_without_filesystem_changes():
         for job_id in batch.jobs:
             service.JOBS.pop(job_id, None)
         service.BATCHES.pop(batch.id, None)
+
+
+
+def test_prompt_source_validation_accepts_native_comfy_string_links():
+    graph = template()
+    graph["77"] = {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "hello"}}
+    assert service.valid_prompt_source("local text", graph, "10")
+    assert service.valid_prompt_source(["77", 0], graph, "10")
+    assert service.valid_prompt_source([77, 0], graph, "10")
+    assert not service.valid_prompt_source(" ", graph, "10")
+    assert not service.valid_prompt_source(["missing", 0], graph, "10")
+    assert not service.valid_prompt_source(["10", 0], graph, "10")
+    assert not service.valid_prompt_source(["77", -1], graph, "10")
+    assert not service.valid_prompt_source(["77", "0"], graph, "10")
+    assert not service.valid_prompt_source(["77", True], graph, "10")
+    assert not service.valid_prompt_source({"source": "77"}, graph, "10")
+
+
+def test_full_pass_through_discards_linked_prompt_without_touching_source_graph():
+    original = template()
+    original["77"] = {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "hello"}}
+    original["10"]["inputs"]["prompt"] = ["77", 0]
+    batch = service.Batch(id="batch-linked", node_id="10", run_each=True,
+                          template=original, workflow=None, client_id=None)
+    full = service._full_copy(batch, "new enhanced prompt", "")
+    assert full["10"]["inputs"]["prompt"] == ""
+    assert full["10"]["inputs"]["enhanced_prompt"] == "new enhanced prompt"
+    assert batch.template["10"]["inputs"]["prompt"] == ["77", 0]
+    assert full["77"] == original["77"]

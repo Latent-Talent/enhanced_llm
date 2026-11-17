@@ -137,6 +137,25 @@ def _on_prompt_handler(payload: dict) -> dict:
         return payload
     return payload
 
+def valid_prompt_source(prompt, output: dict, node_id: str) -> bool:
+    """Accept ordinary text or a standard ComfyUI link from another graph node.
+
+    The actual source type and slot are validated by ComfyUI's own prompt
+    validation during native queue submission.
+    """
+    if isinstance(prompt, str):
+        return bool(prompt.strip())
+    if not (isinstance(prompt, list) and len(prompt) == 2):
+        return False
+    source, slot = prompt
+    if isinstance(source, bool) or not isinstance(source, (str, int)):
+        return False
+    if type(slot) is not int or slot < 0:
+        return False
+    source_id = str(source)
+    return source_id != str(node_id) and source_id in output
+
+
 def _full_copy(batch: Batch, text: str, thinking: str):
     prompt = copy.deepcopy(batch.template)
     inputs = prompt[batch.node_id]["inputs"]
@@ -144,6 +163,11 @@ def _full_copy(batch: Batch, text: str, thinking: str):
     inputs["enhancement_job_id"] = ""
     inputs["enhanced_prompt"] = text
     inputs["enhanced_thinking"] = thinking
+    # A linked original prompt is needed for enhancement but not for the
+    # downstream full run, which now has its immutable enhanced_prompt text.
+    # Drop that dependency so the full run never invokes an upstream text LLM.
+    if isinstance(inputs.get("prompt"), list):
+        inputs["prompt"] = ""
     # The pass-through path needs none of these model inputs. Removing their
     # links avoids loading the LLM during automatic full-workflow execution.
     for key in ("clip", "images", "videos", "audios", "system_prompt"):
@@ -303,8 +327,8 @@ def register_routes():
             if output[node_id].get("class_type") != NODE_ID:
                 raise ValueError("Selected node is not an Enhanced LLM node.")
             inputs = output[node_id].get("inputs", {})
-            if not isinstance(inputs.get("prompt"), str) or not inputs["prompt"].strip():
-                raise ValueError("The original prompt is empty or connected to an unsupported input.")
+            if not valid_prompt_source(inputs.get("prompt"), output, node_id):
+                raise ValueError("Enter an original prompt or connect a valid upstream STRING prompt input.")
             if not isinstance(inputs.get("enhancement_text"), str) or not inputs["enhancement_text"].strip():
                 raise ValueError("The enhancement system prompt is empty.")
             if "clip" not in inputs:

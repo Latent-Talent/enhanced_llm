@@ -4,6 +4,7 @@ import { MODES, nextIndex } from "./cycle.mjs";
 import { summarizeBatch, buttonLabel } from "./progress.mjs";
 import { SAMPLING_PRESETS, applySamplingPreset, matchingSamplingPreset } from "./sampling.mjs";
 import { createTextareaResizeController, HEIGHT_PROPERTY, TEXTAREA_HEIGHTS } from "./resize.mjs";
+import { promptInputSlot, usesPromptInput, canEnhancePrompt } from "./prompt_source.mjs";
 import { DEFAULT_PRESETS, isDefaultPreset, getPreset, validateUserPresets } from "./presets.mjs";
 
 const NODE = "LatentTalentEnhancedGenerateText";
@@ -90,6 +91,39 @@ function attach(node) {
   root.className="eml-panel";
   const resize=createTextareaResizeController(node);
   let textareaObserver=null;
+  function refreshPromptSource(){
+    const slot=promptInputSlot(node);
+    const inputMode=usesPromptInput(node);
+    at("prompt").hidden=inputMode;
+    at("prompt-input-hint").hidden=!inputMode;
+    at("prompt-mode").textContent=inputMode?"Use Text":"Use Input";
+    at("prompt-mode").title=inputMode
+      ?"Disconnect the prompt input (if connected) and edit the original text"
+      :"Replace the prompt text box with a connectable STRING input";
+    at("prompt-input-hint").textContent=slot.connected
+      ?"Connected STRING input: prompt will come from the upstream node."
+      :"Connect a STRING output to the 'prompt' socket on the left of this node.";
+    at("prompt-mode").disabled=slot.index<0;
+    // A connected slot is the authority. Never copy its value into prompt's
+    // stored text, which is the fallback if the connection is removed.
+  }
+  function selectPromptSource(){
+    const slot=promptInputSlot(node);
+    if(slot.index<0) return status("The native prompt input is unavailable. Update ComfyUI.");
+    if(usesPromptInput(node)){
+      // Switching back to text must disconnect the upstream source, otherwise
+      // the native backend will continue receiving the linked value.
+      if(slot.connected) node.disconnectInput(slot.index);
+      node.properties ??={};
+      node.properties.enhancedLLMUsePromptInput=false;
+    }else{
+      node.properties ??={};
+      node.properties.enhancedLLMUsePromptInput=true;
+    }
+    refreshPromptSource();
+    node.setDirtyCanvas?.(true,true);
+    node.graph?.change?.();
+  }
   function restoreTextareaHeights() {
     resize.restore(node.properties?.[HEIGHT_PROPERTY],at("jailbreak-group").open);
     for (const key of Object.keys(TEXTAREA_HEIGHTS)) {
@@ -99,7 +133,9 @@ function attach(node) {
   }
   // Static markup: user text and generated text only enter DOM via value/textContent.
   root.innerHTML=[
+    '<div class="eml-row eml-prompt-source"><span>Prompt</span><button type="button" data-eml="prompt-mode" title="Replace prompt text with STRING input">Use Input</button></div>',
     '<textarea data-eml="prompt" rows="4" aria-label="Prompt" placeholder="prompt"></textarea>',
+    '<div class="eml-prompt-input-hint" data-eml="prompt-input-hint" hidden role="status">Connect a STRING output to the prompt input socket.</div>',
     '<div class="eml-row eml-toolbar eml-enhance-row"><button class="eml-primary" data-eml="enhance" title="Run only upstream inputs and the connected LLM">Enhance</button>',
     '<span class="eml-counter"><button data-eml="minus" title="Fewer enhancements">−</button><span data-eml="count">1</span><button data-eml="plus" title="More enhancements">+</button></span>',
     '<button data-eml="promote" title="Copy enhanced text into original prompt">↑</button><button data-eml="undo1">Undo</button></div>',
@@ -295,7 +331,8 @@ function attach(node) {
       nameKind=null;at("rename").hidden=true;
     }catch(err){status(err.message);}
   }
-  at("prompt").oninput=()=>set(node,"prompt",at("prompt").value);
+  at("prompt").oninput=()=>{if(!usesPromptInput(node))set(node,"prompt",at("prompt").value);};
+  at("prompt-mode").onclick=selectPromptSource;
   at("enhanced").onfocus=()=>editing=false;
   at("enhanced").oninput=()=>{
     if(!editing){remember();editing=true;}
@@ -317,7 +354,17 @@ function attach(node) {
   at("minus").onclick=()=>{count=Math.max(1,count-1);at("count").textContent=count;};
   at("plus").onclick=()=>{count=Math.min(32,count+1);at("count").textContent=count;};
   at("run-each").onchange=()=>set(node,"queue_run_for_each",at("run-each").checked);
-  at("promote").onclick=()=>{at("prompt").value=at("enhanced").value;set(node,"prompt",at("prompt").value);};
+  at("promote").onclick=()=>{
+    // Promotion is an explicit return to text mode; a connected input must
+    // not silently override the promoted value.
+    const slot=promptInputSlot(node);
+    if(slot.connected)node.disconnectInput(slot.index);
+    node.properties ??={};
+    node.properties.enhancedLLMUsePromptInput=false;
+    at("prompt").value=at("enhanced").value;
+    set(node,"prompt",at("prompt").value);
+    refreshPromptSource();
+  };
   at("prev").onclick=()=>{const n=current().items.length;if(n){state.index=(state.index+n-1)%n;renderSelection();}};
   at("next").onclick=()=>{const n=current().items.length;if(n){state.index=(state.index+1)%n;renderSelection();}};
   at("remove").onclick=()=>{
@@ -426,7 +473,11 @@ function attach(node) {
       finally{busy=false;at("enhance").disabled=false;}
       return;
     }
-    if(!at("prompt").value.trim())return status("Enter an original prompt.");
+    if(!canEnhancePrompt(node,at("prompt").value)){
+      return status(usesPromptInput(node)
+        ?"Connect a STRING output to the prompt socket before enhancing."
+        :"Enter an original prompt.");
+    }
     if(!at("instructions").value.trim())return status("Select or enter an enhancement preset.");
     if(!node.inputs?.some(i=>i.name==="clip"&&i.link!=null))
       return status("Connect a text-generation CLIP model.");
@@ -499,6 +550,7 @@ function attach(node) {
       // Widgets are restored after nodeCreated when loading a workflow.
       state=parseState(get(node,"prompt_sets_json"));
       at("prompt").value=String(get(node,"prompt")||"");
+      refreshPromptSource();
       at("cycle").value=String(get(node,"prompt_cycle")||"fixed");
       at("run-each").checked=Boolean(get(node,"queue_run_for_each"));
       renderSets();renderPresets();renderSamplingPresets();
@@ -579,6 +631,12 @@ function attach(node) {
   node.onConfigure=function(...args){
     const result=prevConfigure?.apply(this,args);
     queueMicrotask(()=>panel.hydrate());
+    return result;
+  };
+  const prevConnections=node.onConnectionsChange;
+  node.onConnectionsChange=function(...args){
+    const result=prevConnections?.apply(this,args);
+    queueMicrotask(refreshPromptSource);
     return result;
   };
   const prevExecuted=node.onExecuted;

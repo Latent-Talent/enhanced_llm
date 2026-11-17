@@ -88,3 +88,12 @@ test("prompt can switch between editable text and the native STRING socket",()=>
   assert.match(ui,/node\.onConnectionsChange=function/);
   assert.match(css,/\.eml-panel textarea\[data-eml="prompt"\]\[hidden\]/);
 });
+
+
+test("native ComfyUI status events trigger queue-aware enhancement refreshes",()=>{
+  assert.match(ui,/api\.addEventListener\?\.\("status",nativeQueueChanged\)/);
+  assert.match(ui,/api\.removeEventListener\?\.\("status",nativeQueueChanged\)/);
+  assert.match(ui,/activeStatusRefresh=refresh/);
+  assert.match(ui,/activeStatusRefresh\?\.\(\)/);
+  assert.match(ui,/progress\.active>0/);
+});

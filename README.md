@@ -147,3 +147,8 @@ The server reconciles the actual pending/running queue and history after native
 submission completes. A running enhancement interrupted through the native
 ComfyUI queue is categorized as cancelled rather than as a failed generation.
 Queue-run-for-each jobs are not counted as additional enhancement jobs.
+
+
+The toolbar reacts to ComfyUI's native queue-status events (debounced to avoid
+excess requests) as well as polling for recovery if an event is missed. Only
+the originating enhancement batch affects this node's button.

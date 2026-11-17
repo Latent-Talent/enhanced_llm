@@ -91,6 +91,18 @@ function attach(node) {
   root.className="eml-panel";
   const resize=createTextareaResizeController(node);
   let textareaObserver=null;
+  let statusRefreshTimer=null;
+  let activeStatusRefresh=null;
+  const nativeQueueChanged=()=>{
+    if(!activeBatchId || !activeStatusRefresh || statusRefreshTimer)return;
+    // ComfyUI broadcasts "status" as its queue changes. Coalesce bursts
+    // while still responding faster than the periodic recovery poll.
+    statusRefreshTimer=setTimeout(()=>{
+      statusRefreshTimer=null;
+      activeStatusRefresh?.();
+    },160);
+  };
+  api.addEventListener?.("status",nativeQueueChanged);
   function refreshPromptSource(){
     const slot=promptInputSlot(node);
     const inputMode=usesPromptInput(node);
@@ -445,11 +457,14 @@ function attach(node) {
         }
         if(progress.terminal){
           if(poll){clearInterval(poll);poll=null;}
+          if(statusRefreshTimer){clearTimeout(statusRefreshTimer);statusRefreshTimer=null;}
+          activeStatusRefresh=null;
           activeBatchId=null;
           showButton(progress.completed,progress.total,false);
         }
       }catch(err){console.warn("[Enhanced LLM] Queue status:",err);}
     };
+    activeStatusRefresh=refresh;
     poll=setInterval(refresh,1600);
     refresh();
   }
@@ -465,6 +480,8 @@ function attach(node) {
         const data=await response.json();
         if(!response.ok)throw new Error(data.error||"HTTP "+response.status);
         if(poll){clearInterval(poll);poll=null;}
+        if(statusRefreshTimer){clearTimeout(statusRefreshTimer);statusRefreshTimer=null;}
+        activeStatusRefresh=null;
         activeBatchId=null;
         const progress=summarizeBatch(data.jobs);
         showButton(progress.completed,progress.total,false);
@@ -569,6 +586,9 @@ function attach(node) {
     },
     destroy(){
       if(poll)clearInterval(poll);
+      if(statusRefreshTimer)clearTimeout(statusRefreshTimer);
+      api.removeEventListener?.("status",nativeQueueChanged);
+      activeStatusRefresh=null;
       textareaObserver?.disconnect();
       PANELS.delete(panel);
     }

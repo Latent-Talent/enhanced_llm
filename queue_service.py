@@ -46,6 +46,7 @@ class Batch:
     jobs: list[str] = field(default_factory=list)
     created: float = field(default_factory=time.time)
     cancelled: bool = False
+    finalized: bool = False
 
 
 def _server():
@@ -267,25 +268,67 @@ def finalize_batch(batch: Batch, submitted: list[str]) -> None:
             if job_id not in submitted and job.state in ("reserved", "pending"):
                 job.state = "cancelled" if batch.cancelled else "error"
                 job.error = "Enhancement submission did not complete."
+        # Only reconcile missing jobs after native frontend submission ends.
+        # Before that, a reserved prompt id may not yet exist in ComfyUI's
+        # pending/running queue and must not be mistaken for a cancellation.
+        batch.finalized = True
+
+
+def _history_was_interrupted(status: dict) -> bool:
+    for message in status.get("messages") or ():
+        if isinstance(message, (tuple, list)) and message and message[0] == "execution_interrupted":
+            return True
+    return False
+
+
+def reconcile_batch_queue(batch: Batch, queue) -> None:
+    """Observe native ComfyUI job state, including external queue cancellation.
+
+    ComfyUI's queued-job deletion does not create history. A submitted prompt
+    missing from both queue and history is therefore canceled. Running-job
+    interruption *does* produce a history error with execution_interrupted.
+    """
+    with LOCK:
+        if not batch.finalized:
+            return
+        pending = [job_id for job_id in batch.jobs
+                   if JOBS[job_id].state == "pending"]
+    if not pending:
+        return
+
+    # Query queue before history so a job transitioning to history between
+    # snapshots is never incorrectly labeled as deleted.
+    live, waiting = queue.get_current_queue_volatile()
+    active_ids = {
+        item[1] for item in (*live, *waiting)
+        if isinstance(item, (tuple, list)) and len(item) >= 2
+    }
+    for job_id in pending:
+        if job_id in active_ids:
+            continue
+        record = (queue.get_history(prompt_id=job_id) or {}).get(job_id)
+        with LOCK:
+            if JOBS[job_id].state != "pending":
+                continue  # async follow-up may have completed in the meantime
+            if record is None:
+                JOBS[job_id].state = "cancelled"
+            else:
+                status = record.get("status") or {}
+                if status.get("status_str") == "error":
+                    if _history_was_interrupted(status):
+                        JOBS[job_id].state = "cancelled"
+                    else:
+                        JOBS[job_id].state = "error"
+                        JOBS[job_id].error = str(status.get("messages") or "Enhancement execution failed.")
+                # A successful node may still have an async follow-up being
+                # processed by finish_job(); never preempt it here.
 
 
 def _snapshot_status(batch: Batch):
-    # A node may fail before it calls finish_job(). Reconcile those errors with
-    # ComfyUI history so the UI never displays a permanently stuck counter.
     try:
-        queue = _server().prompt_queue
-        with LOCK:
-            pending = [job_id for job_id in batch.jobs if JOBS[job_id].state == "pending"]
-        for job_id in pending:
-            history = queue.get_history(prompt_id=job_id)
-            status = (history.get(job_id) or {}).get("status") or {}
-            if status.get("status_str") == "error":
-                with LOCK:
-                    if JOBS[job_id].state == "pending":
-                        JOBS[job_id].state = "error"
-                        JOBS[job_id].error = str(status.get("messages") or "Enhancement execution failed.")
+        reconcile_batch_queue(batch, _server().prompt_queue)
     except Exception:
-        LOGGER.exception("Could not reconcile enhancement job history")
+        LOGGER.exception("Could not reconcile enhancement queue/history")
     with LOCK:
         return {
             "batch_id": batch.id,

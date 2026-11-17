@@ -6,12 +6,18 @@ const TERMINAL = new Set([...SUCCESS, "cancelled", "error"]);
 
 export function summarizeBatch(jobs) {
   const list = Array.isArray(jobs) ? jobs : [];
+  // Cancelled enhancements are excluded from the original batch denominator.
+  // A job removed through ComfyUI's native queue controls is also cancelled
+  // once the server reconciles its queue/history record.
+  const included = list.filter(j => j?.state !== "cancelled");
   return {
-    completed: list.filter(j => SUCCESS.has(j?.state)).length,
-    total: list.length,
+    completed: included.filter(j => SUCCESS.has(j?.state)).length,
+    total: included.length,
+    cancelled: list.length - included.length,
+    active: included.filter(j => !TERMINAL.has(j?.state)).length,
     terminal: list.length > 0 && list.every(j => TERMINAL.has(j?.state)),
-    failed: list.filter(j => j?.state === "error").length,
-    fullRunErrors: list.filter(j => j?.state === "full_error").length,
+    failed: included.filter(j => j?.state === "error").length,
+    fullRunErrors: included.filter(j => j?.state === "full_error").length,
   };
 }
 

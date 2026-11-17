@@ -271,3 +271,108 @@ def test_full_pass_through_discards_linked_prompt_without_touching_source_graph(
     assert full["10"]["inputs"]["enhanced_prompt"] == "new enhanced prompt"
     assert batch.template["10"]["inputs"]["prompt"] == ["77", 0]
     assert full["77"] == original["77"]
+
+
+
+def test_external_dequeue_reconciled_only_after_submission_finalized():
+    """ComfyUI queue deletion removes pending jobs without creating history."""
+    batch = service.reserve_batch("10", 3, False, template(), None, None)
+    ids = batch.jobs
+    for job_id in ids:
+        service.JOBS[job_id].state = "pending"
+
+    class Queue:
+        def get_current_queue_volatile(self):
+            return [], [(1, ids[0]), (2, ids[2])]
+
+        def get_history(self, prompt_id=None):
+            return {}
+
+    try:
+        service.reconcile_batch_queue(batch, Queue())
+        assert service.JOBS[ids[1]].state == "pending"  # still submitting
+        service.finalize_batch(batch, ids)
+        service.reconcile_batch_queue(batch, Queue())
+        assert [service.JOBS[j].state for j in ids] == [
+            "pending", "cancelled", "pending"
+        ]
+        assert service._snapshot_status is not None
+    finally:
+        for job_id in ids:
+            service.JOBS.pop(job_id, None)
+        service.BATCHES.pop(batch.id, None)
+
+
+def test_cancelled_running_job_history_is_not_reported_as_failure():
+    batch = service.reserve_batch("10", 2, False, template(), None, None)
+    ids = batch.jobs
+    for job_id in ids:
+        service.JOBS[job_id].state = "pending"
+
+    class Queue:
+        def get_current_queue_volatile(self):
+            return [], []
+
+        def get_history(self, prompt_id=None):
+            return {prompt_id: {"status": {
+                "status_str": "error",
+                "messages": [["execution_interrupted", {"prompt_id": prompt_id}]]
+            }}} if prompt_id == ids[0] else {prompt_id: {"status": {
+                "status_str": "error",
+                "messages": [["execution_error", {"exception_message": "failure"}]]
+            }}}
+
+    try:
+        service.finalize_batch(batch, ids)
+        service.reconcile_batch_queue(batch, Queue())
+        assert service.JOBS[ids[0]].state == "cancelled"
+        assert service.JOBS[ids[1]].state == "error"
+    finally:
+        for job_id in ids:
+            service.JOBS.pop(job_id, None)
+        service.BATCHES.pop(batch.id, None)
+
+
+def test_all_deleted_native_queue_jobs_reconcile_as_cancelled():
+    batch = service.reserve_batch("10", 3, False, template(), None, None)
+    ids = batch.jobs
+    for job_id in ids:
+        service.JOBS[job_id].state = "pending"
+    class Queue:
+        def get_current_queue_volatile(self):
+            return [], []
+        def get_history(self, prompt_id=None):
+            return {}
+    try:
+        service.finalize_batch(batch, ids)
+        service.reconcile_batch_queue(batch, Queue())
+        assert all(service.JOBS[jid].state == "cancelled" for jid in ids)
+    finally:
+        for job_id in ids:
+            service.JOBS.pop(job_id, None)
+        service.BATCHES.pop(batch.id, None)
+
+
+def test_reconciliation_does_not_override_completed_native_result():
+    batch = service.reserve_batch("10", 1, False, template(), None, None)
+    job = batch.jobs[0]
+    service.JOBS[job].state = "pending"
+
+    class Queue:
+        def get_current_queue_volatile(self):
+            return [], []
+        def get_history(self, prompt_id=None):
+            return {prompt_id: {"status": {
+                "status_str": "success", "messages": [],
+            }}}
+
+    try:
+        service.finalize_batch(batch, [job])
+        service.reconcile_batch_queue(batch, Queue())
+        assert service.JOBS[job].state == "pending"  # async finish_job may still be processing
+        service.JOBS[job].state = "enhanced"
+        service.reconcile_batch_queue(batch, Queue())
+        assert service.JOBS[job].state == "enhanced"
+    finally:
+        service.JOBS.pop(job, None)
+        service.BATCHES.pop(batch.id, None)

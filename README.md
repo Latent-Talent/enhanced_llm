@@ -131,3 +131,19 @@ The selected display mode is stored with the workflow.
 When **Queue Run for Each** is enabled, an automatically queued full run uses
 its generated enhanced text and removes the original prompt's upstream link in
 that *run's snapshot only*. The user's original connected graph remains unchanged.
+
+
+### Queue-aware Enhance / Cancel button
+
+The Enhance/Cancel counter now reflects live ComfyUI queue status for this node's
+enhancement batch. Cancelled jobs, including jobs individually removed through
+ComfyUI's own queue controls, are excluded from the **x/y** denominator.
+Successful enhancements remain in the numerator. For example, a 5-job batch
+with two completed and one externally cancelled displays **Cancel · 2/4**.
+If no jobs remain active, the button returns to **Enhance**. An all-cancelled
+batch returns immediately to Enhance when the queue status refreshes.
+
+The server reconciles the actual pending/running queue and history after native
+submission completes. A running enhancement interrupted through the native
+ComfyUI queue is categorized as cancelled rather than as a failed generation.
+Queue-run-for-each jobs are not counted as additional enhancement jobs.

@@ -438,7 +438,7 @@ function attach(node) {
         const data=await r.json();
         if(activeBatchId!==id)return; // late response from an older batch
         const progress=summarizeBatch(data.jobs);
-        showButton(progress.completed,progress.total,!progress.terminal);
+        showButton(progress.completed,progress.total,progress.active>0);
         if(progress.failed || progress.fullRunErrors){
           status(progress.failed+" enhancement failures; "+
             progress.fullRunErrors+" full runs failed to queue.");

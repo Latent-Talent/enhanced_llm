@@ -1,34 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {promptInputSlot,usesPromptInput,canEnhancePrompt} from "../../web/prompt_source.mjs";
+import {promptInputSlots,promptInputSlot,usesPromptInput,canEnhancePrompt} from "../../web/prompt_source.mjs";
 
-const node=(link=null,inputMode=false)=>({
-  inputs:[{name:"clip",link:1},{name:"prompt",link}],
-  properties:{enhancedLLMUsePromptInput:inputMode},
+const node=(link=null)=>({
+  inputs:[{name:"clip",link:1},{name:"audio1",link:null},
+          {name:"prompt_input",link},{name:"prompt",link:null}]
 });
 
-test("native widget-backed prompt socket is recognized and accepts link id zero",()=>{
-  assert.deepEqual(promptInputSlot(node(0)),{index:1,connected:true});
-  assert.deepEqual(promptInputSlot(node(null)),{index:1,connected:false});
-  assert.deepEqual(promptInputSlot({inputs:[{name:"other",widget:{name:"prompt"},link:5}]}),
-    {index:0,connected:true});
+test("dedicated native prompt socket is found below audio",()=>{
+  assert.deepEqual(promptInputSlot(node(0)),{index:2,connected:true});
+  assert.equal(usesPromptInput(node(0)),true);
+  assert.deepEqual(promptInputSlots(node(0)),[
+    {index:2,connected:true},{index:3,connected:false},
+  ]);
 });
 
-test("input overrides stored text; no empty-prompt rejection when connected",()=>{
-  assert.equal(usesPromptInput(node(2)),true);
+test("a connected STRING source hides the editable field and enables enhancement",()=>{
   assert.equal(canEnhancePrompt(node(2),""),true);
-  assert.equal(canEnhancePrompt(node(2),"stale local text"),true);
-});
-
-test("text fallback and explicit input mode without a connection",()=>{
+  assert.equal(canEnhancePrompt(node(2),"stale widget text"),true);
   assert.equal(usesPromptInput(node(null)),false);
-  assert.equal(canEnhancePrompt(node(null),"local prompt"),true);
+  assert.equal(canEnhancePrompt(node(null),"typed text"),true);
   assert.equal(canEnhancePrompt(node(null),"  "),false);
-  assert.equal(usesPromptInput(node(null,true)),true);
-  assert.equal(canEnhancePrompt(node(null,true),"stale text"),false);
 });
 
-test("no socket does not throw",()=>{
+test("legacy widget-backed prompt connections continue to work",()=>{
+  const legacy={inputs:[{name:"clip",link:1},{name:"prompt",link:5}]};
+  assert.equal(usesPromptInput(legacy),true);
+  assert.equal(canEnhancePrompt(legacy,""),true);
+  assert.deepEqual(promptInputSlot(legacy),{index:1,connected:true});
+});
+
+test("input mode does not depend on stored UI properties",()=>{
+  const graph=node(null);
+  graph.properties={enhancedLLMUsePromptInput:true};
+  assert.equal(usesPromptInput(graph),false);
   assert.deepEqual(promptInputSlot({inputs:[]}),{index:-1,connected:false});
-  assert.equal(canEnhancePrompt({inputs:[]},"typed text"),true);
 });

@@ -169,6 +169,9 @@ def _full_copy(batch: Batch, text: str, thinking: str):
     # Drop that dependency so the full run never invokes an upstream text LLM.
     if isinstance(inputs.get("prompt"), list):
         inputs["prompt"] = ""
+    # The full run already carries its exact enhanced text. It must not
+    # execute the upstream prompt source again just to pass that text through.
+    inputs.pop("prompt_input", None)
     # The pass-through path needs none of these model inputs. Removing their
     # links avoids loading the LLM during automatic full-workflow execution.
     for key in ("clip", "images", "videos", "audios", "system_prompt"):
@@ -370,7 +373,10 @@ def register_routes():
             if output[node_id].get("class_type") != NODE_ID:
                 raise ValueError("Selected node is not an Enhanced LLM node.")
             inputs = output[node_id].get("inputs", {})
-            if not valid_prompt_source(inputs.get("prompt"), output, node_id):
+            if "prompt_input" in inputs:
+                if not valid_prompt_source(inputs["prompt_input"], output, node_id):
+                    raise ValueError("Connect a valid upstream STRING source to the prompt input.")
+            elif not valid_prompt_source(inputs.get("prompt"), output, node_id):
                 raise ValueError("Enter an original prompt or connect a valid upstream STRING prompt input.")
             if not isinstance(inputs.get("enhancement_text"), str) or not inputs["enhancement_text"].strip():
                 raise ValueError("The enhancement system prompt is empty.")

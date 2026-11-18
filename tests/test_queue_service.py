@@ -376,3 +376,27 @@ def test_reconciliation_does_not_override_completed_native_result():
     finally:
         service.JOBS.pop(job, None)
         service.BATCHES.pop(batch.id, None)
+
+
+
+def test_connected_dedicated_prompt_socket_is_dropped_from_full_run():
+    original = template()
+    original["77"] = {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "source"}}
+    original["10"]["inputs"]["prompt"] = "stale widget text"
+    original["10"]["inputs"]["prompt_input"] = ["77", 0]
+    batch = service.Batch(
+        id="prompt-attach", node_id="10", run_each=True,
+        template=original, workflow=None, client_id=None,
+    )
+    full = service._full_copy(batch, "enhanced output", "")
+    assert "prompt_input" not in full["10"]["inputs"]
+    assert full["10"]["inputs"]["enhanced_prompt"] == "enhanced output"
+    assert original["10"]["inputs"]["prompt_input"] == ["77", 0]
+
+
+def test_batch_prompt_input_validation_accepts_linked_source_and_rejects_missing():
+    graph = template()
+    graph["77"] = {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "source"}}
+    graph["10"]["inputs"]["prompt_input"] = ["77", 0]
+    assert service.valid_prompt_source(graph["10"]["inputs"]["prompt_input"], graph, "10")
+    assert not service.valid_prompt_source(["missing", 0], graph, "10")

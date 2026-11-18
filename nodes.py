@@ -16,6 +16,13 @@ class EnhancedGenerateText(io.ComfyNode):
     def define_schema(cls):
         native = TextGenerateV2.define_schema()
         inputs = []
+        prompt_socket = io.String.Input(
+            "prompt_input",
+            display_name="prompt",
+            force_input=True,
+            optional=True,
+            tooltip="Optional external STRING prompt. Overrides the editable Prompt field when connected.",
+        )
         for item in native.inputs:
             if item.id == "system_prompt":
                 # enhancement_text is the node's only system prompt input.
@@ -24,6 +31,10 @@ class EnhancedGenerateText(io.ComfyNode):
                 inputs.append(io.Clip.Input("clip", optional=True))
             else:
                 inputs.append(item)
+            # Place the actual socket directly after native AUDIO inputs.
+            # No LiteGraph widget geometry manipulation is necessary.
+            if item.id == "audios":
+                inputs.append(prompt_socket)
             if item.id == "prompt":
                 inputs.extend([
                     io.String.Input("enhanced_prompt", multiline=True, default=""),
@@ -39,6 +50,10 @@ class EnhancedGenerateText(io.ComfyNode):
                     io.String.Input("ui_action", default="pass"),
                     io.String.Input("enhancement_job_id", default=""),
                 ])
+        if not any(item.id == "prompt_input" for item in inputs):
+            # Keep the socket if an upstream native ComfyUI release renames
+            # or removes the multi-audio input group.
+            inputs.append(prompt_socket)
         return io.Schema(
             node_id=NODE_ID,
             display_name="Generate Text + Enhance",
@@ -57,20 +72,25 @@ class EnhancedGenerateText(io.ComfyNode):
     @classmethod
     def execute(cls, clip=None, prompt="", max_length=512, sampling_mode=None,
                 enhanced_prompt="", enhanced_thinking="", enhancement_text="", jailbreak_text="",
+                prompt_input=None,
                 enhancement_preset_id="default:krea2", prompt_sets_json="",
                 prompt_cycle="fixed", queue_run_for_each=False,
                 ui_action="pass", enhancement_job_id="",
                 thinking=False, use_default_template=True,
                 mtp="auto", images=None, videos=None, audios=None,
                 **_extra) -> io.NodeOutput:
+        # An attached STRING socket takes priority. Empty connected strings
+        # remain empty and are validated below instead of silently using a
+        # stale local Prompt field.
+        source_prompt = prompt_input if prompt_input is not None else prompt
         if ui_action != "enhance":
             # Normal workflow execution never invokes clip.generate().
-            return io.NodeOutput(enhanced_prompt or prompt, enhanced_thinking if enhanced_prompt else "")
+            return io.NodeOutput(enhanced_prompt or source_prompt, enhanced_thinking if enhanced_prompt else "")
 
         if clip is None:
             raise ValueError("Connect a text-generation CLIP model before enhancing.")
-        if not prompt.strip():
-            raise ValueError("Enter an original prompt before enhancing.")
+        if not isinstance(source_prompt, str) or not source_prompt.strip():
+            raise ValueError("Enter an original prompt or connect a nonempty STRING input before enhancing.")
         instructions = enhancement_text.strip()
         if not instructions:
             raise ValueError("Select or enter a nonempty enhancement system prompt.")
@@ -87,7 +107,7 @@ class EnhancedGenerateText(io.ComfyNode):
 
         generated = TextGenerateV2.execute(
             clip=clip,
-            prompt=prompt,
+            prompt=source_prompt,
             max_length=max_length,
             sampling_mode=sampling,
             thinking=thinking,

@@ -42,7 +42,8 @@ native.TextGenerateV2 = type("TextGenerateV2", (), {
     "execute": lambda **kw: None,
     "define_schema": classmethod(lambda cls: types.SimpleNamespace(inputs=[
         types.SimpleNamespace(id=k) for k in (
-            "clip", "prompt", "system_prompt", "max_length", "sampling_mode", "thinking", "mtp"
+            "clip", "prompt", "images", "videos", "audios",
+            "system_prompt", "max_length", "sampling_mode", "thinking", "mtp"
         )
     ]))
 })
@@ -184,3 +185,54 @@ def test_ui_text_preview_uses_inline_content_without_creating_a_file():
     assert result.ui["text"][0]["content"] == "fully enhanced prompt"
     assert result.ui["text"][0]["filenameIsDisplayName"] is True
     assert not result.ui["text"][0]["filename"].endswith(".txt")
+
+
+
+def test_new_prompt_socket_follows_audio_group_in_schema():
+    inputs = module.EnhancedGenerateText.define_schema().inputs
+    ids = [field.id for field in inputs]
+    assert ids.index("prompt_input") == ids.index("audios") + 1
+    socket = inputs[ids.index("prompt_input")]
+    assert socket.kind == "STRING"
+    assert socket.optional is True
+    assert socket.force_input is True
+    assert socket.display_name == "prompt"
+    assert ids.count("prompt") == 1  # original editable widget is preserved
+
+
+def test_connected_prompt_overrides_widget_text_for_native_enhancement():
+    calls = []
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return NodeOutput("enhanced from attached text", "")
+    module.TextGenerateV2.execute = fake_generate
+    generated = module.EnhancedGenerateText.execute(
+        clip=object(), prompt="old local text", prompt_input="connected prompt",
+        enhancement_text="expand", ui_action="enhance",
+    )
+    assert generated.args[0] == "enhanced from attached text"
+    assert calls[-1]["prompt"] == "connected prompt"
+
+
+def test_pass_through_uses_connected_prompt_but_not_when_enhanced_text_exists():
+    result = module.EnhancedGenerateText.execute(
+        prompt="old local text", prompt_input="connected prompt", ui_action="pass",
+    )
+    assert result.args[0] == "connected prompt"
+    result = module.EnhancedGenerateText.execute(
+        prompt="old local text", prompt_input="connected prompt",
+        enhanced_prompt="completed enhancement", ui_action="pass",
+    )
+    assert result.args[0] == "completed enhancement"
+
+
+def test_empty_connected_prompt_does_not_fall_back_to_stale_text():
+    try:
+        module.EnhancedGenerateText.execute(
+            clip=object(), prompt="stale text", prompt_input="",
+            enhancement_text="expand", ui_action="enhance",
+        )
+    except ValueError as exc:
+        assert "STRING" in str(exc)
+    else:
+        raise AssertionError("Expected the empty connected string to be rejected")

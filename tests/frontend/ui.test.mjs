@@ -79,14 +79,17 @@ test("LLM sampling presets modify native widgets and show descriptive help",()=>
 });
 
 
-test("prompt can switch between editable text and the native STRING socket",()=>{
-  assert.match(ui,/data-eml="prompt-mode"/);
-  assert.match(ui,/promptInputSlot\(node\)/);
-  assert.match(ui,/node\.disconnectInput\(slot\.index\)/);
-  assert.match(ui,/refreshPromptSource\(\)/);
+test("prompt field hides only when the dedicated native socket is connected",()=>{
+  assert.match(ui,/data-eml="prompt-source"/);
+  assert.doesNotMatch(ui,/data-eml="prompt-mode"/);
+  assert.doesNotMatch(ui,/data-eml="prompt-input-hint"/);
+  assert.match(ui,/at\("prompt-source"\)\.hidden=connected/);
+  assert.match(ui,/at\("prompt"\)\.hidden=connected/);
   assert.match(ui,/canEnhancePrompt\(node,at\("prompt"\)\.value\)/);
   assert.match(ui,/node\.onConnectionsChange=function/);
   assert.match(css,/\.eml-panel textarea\[data-eml="prompt"\]\[hidden\]/);
+  assert.doesNotMatch(ui,/node\.arrange\s*=/);
+  assert.doesNotMatch(ui,/slot\.pos\s*=/);
 });
 
 

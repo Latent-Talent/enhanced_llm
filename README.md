@@ -152,14 +152,3 @@ Queue-run-for-each jobs are not counted as additional enhancement jobs.
 The toolbar reacts to ComfyUI's native queue-status events (debounced to avoid
 excess requests) as well as polling for recovery if an event is missed. Only
 the originating enhancement batch affects this node's button.
-
-
-### Native prompt socket layout
-
-The Prompt input uses the original native ComfyUI STRING socket, anchored
-beside the **Prompt** label in the custom control panel. Selecting **Use Input**
-or connecting a STRING output removes the entire prompt textarea, as with
-native widget conversion. It no longer displays a placeholder text field.
-**Use Text** disconnects the wire and restores the saved textarea. The socket
-position is updated from the DOM widget's actual layout on node arrangement
-and resize, not the default top-of-node socket position.

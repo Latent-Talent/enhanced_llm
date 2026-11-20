@@ -100,3 +100,18 @@ test("native ComfyUI status events trigger queue-aware enhancement refreshes",()
   assert.match(ui,/activeStatusRefresh\?\.\(\)/);
   assert.match(ui,/progress\.active>0/);
 });
+
+
+test("Save and Save As open a name popup instead of an inline name widget",()=>{
+  assert.match(ui,/import \{ openNameDialog \} from "\.\/name_dialog\.mjs"/);
+  assert.match(ui,/nameDialog=openNameDialog\(\{/);
+  assert.match(ui,/Save Prompt Set/);
+  assert.match(ui,/Save Enhancement Preset/);
+  assert.match(ui,/at\("save-set"\)\.onclick=\(\)=>showRename\("set"\)/);
+  assert.match(ui,/at\("save-as"\)\.onclick=\(\)=>showRename\("preset"\)/);
+  assert.doesNotMatch(ui,/data-eml="rename"/);
+  assert.doesNotMatch(ui,/data-eml="name-save"/);
+  assert.doesNotMatch(ui,/window\.prompt\(/);
+  assert.match(css,/\.eml-name-dialog::backdrop/);
+  assert.match(css,/\.eml-name-actions/);
+});

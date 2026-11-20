@@ -157,3 +157,7 @@ Queue-run-for-each jobs are not counted as additional enhancement jobs.
 The toolbar reacts to ComfyUI's native queue-status events (debounced to avoid
 excess requests) as well as polling for recovery if an event is missed. Only
 the originating enhancement batch affects this node's button.
+
+### Save-name popup
+
+Clicking **Save** for a prompt set or **Save As** for an enhancement preset opens a modal popup for entering a name. The popup focuses and selects any prefilled name, supports Enter to save and Escape or Cancel to dismiss, and shows duplicate-name or storage errors inside the popup without losing the text. It replaces the old inline naming row and leaves ComfyUI node layout unchanged.

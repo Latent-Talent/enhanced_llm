@@ -5,6 +5,7 @@ import { summarizeBatch, buttonLabel } from "./progress.mjs";
 import { SAMPLING_PRESETS, applySamplingPreset, matchingSamplingPreset } from "./sampling.mjs";
 import { createTextareaResizeController, HEIGHT_PROPERTY, TEXTAREA_HEIGHTS } from "./resize.mjs";
 import { promptInputSlots, usesPromptInput, canEnhancePrompt } from "./prompt_source.mjs";
+import { openNameDialog } from "./name_dialog.mjs";
 import { DEFAULT_PRESETS, isDefaultPreset, getPreset, validateUserPresets } from "./presets.mjs";
 
 const NODE = "LatentTalentEnhancedGenerateText";
@@ -144,8 +145,6 @@ function attach(node) {
     '<div class="eml-divider"></div>',
     '<div class="eml-row eml-setting eml-sampler-row"><label>LLM Sampling</label><select data-eml="sampling-preset" aria-label="LLM Sampling Preset"></select></div>',
     '<div class="eml-sampler-help" data-eml="sampler-help" aria-live="polite"></div>',
-    '<div data-eml="rename" class="eml-row eml-rename" hidden><input data-eml="name" maxlength="100" aria-label="New name" placeholder="Name">',
-    '<button data-eml="name-save">Save</button><button data-eml="name-cancel">Cancel</button></div>',
     '<div class="eml-status" data-eml="status" role="alert" aria-live="polite" hidden></div>'
   ].join("");
   const at=id=>field(root,id);
@@ -165,7 +164,7 @@ function attach(node) {
     button.setAttribute("aria-label",button.textContent);
   };
   let state=parseState(get(node,"prompt_sets_json"));
-  let undo=[],redo=[],count=1,nameKind=null,editing=false,busy=false,activeBatchId=null,poll=null;
+  let undo=[],redo=[],count=1,editing=false,busy=false,activeBatchId=null,poll=null;
   let submittingBatch=null;
   const seenJobs=new Set();
   const current=()=>state.sets[state.active];
@@ -293,30 +292,35 @@ function attach(node) {
       status("Sampling preset: "+err.message);
     }
   };
+  let nameDialog=null;
   const showRename=kind=>{
-    nameKind=kind;at("rename").hidden=false;
-    at("name").value=kind==="set" && current().name!=="Unsaved"?current().name:"";
-    at("name").focus();
-  };
-  async function commitName(){
-    const name=at("name").value.trim();
-    if(!name)return status("Enter a name.");
-    try{
-      if(nameKind==="set"){
-        if(state.sets.some((s,i)=>i!==state.active&&s.name.toLowerCase()===name.toLowerCase()))
-          throw new Error("That prompt set name already exists.");
-        remember();current().name=name;renderSets();status("");
-      }else if(nameKind==="preset"){
-        if(!presetsLoaded)throw new Error("User preset storage is unavailable.");
-        if([...DEFAULT_PRESETS,...userPresets].some(p=>p.name.toLowerCase()===name.toLowerCase()))
-          throw new Error("That preset name already exists.");
-        const id="user:"+(globalThis.crypto?.randomUUID?.()||String(Date.now()));
-        await writePresets([...userPresets,{id,name,text:at("instructions").value}]);
-        selectPreset(id);status("");
+    nameDialog?.close();
+    nameDialog=openNameDialog({
+      title:kind==="set"?"Save Prompt Set":"Save Enhancement Preset",
+      description:kind==="set"
+        ?"Enter a name for this prompt set. It will be stored with the workflow."
+        :"Enter a name for a new user enhancement preset.",
+      initialName:kind==="set"&&current().name!=="Unsaved"?current().name:"",
+      onClose:()=>{nameDialog=null;},
+      onSave:async name=>{
+        if(kind==="set"){
+          if(state.sets.some((s,i)=>i!==state.active&&s.name.toLowerCase()===name.toLowerCase()))
+            throw new Error("That prompt set name already exists.");
+          remember();
+          current().name=name;
+          renderSets();
+        }else if(kind==="preset"){
+          if(!presetsLoaded)throw new Error("User preset storage is unavailable.");
+          if([...DEFAULT_PRESETS,...userPresets].some(p=>p.name.toLowerCase()===name.toLowerCase()))
+            throw new Error("That preset name already exists.");
+          const id="user:"+(globalThis.crypto?.randomUUID?.()||String(Date.now()));
+          await writePresets([...userPresets,{id,name,text:at("instructions").value}]);
+          selectPreset(id);
+        }
+        status("");
       }
-      nameKind=null;at("rename").hidden=true;
-    }catch(err){status(err.message);}
-  }
+    });
+  };
   at("prompt").oninput=()=>{if(!usesPromptInput(node))set(node,"prompt",at("prompt").value);};
   at("enhanced").onfocus=()=>editing=false;
   at("enhanced").oninput=()=>{
@@ -405,12 +409,6 @@ function attach(node) {
       await writePresets(userPresets.filter(p=>p.id!==id));
       selectPreset(DEFAULT_PRESETS[0].id);status("");
     }catch(err){status("Delete failed: "+err.message);}
-  };
-  at("name-save").onclick=commitName;
-  at("name-cancel").onclick=()=>{nameKind=null;at("rename").hidden=true;};
-  at("name").onkeydown=e=>{
-    if(e.key==="Enter"){e.preventDefault();commitName();}
-    if(e.key==="Escape"){nameKind=null;at("rename").hidden=true;}
   };
   function monitorBatch(id){
     if(poll)clearInterval(poll);
@@ -555,6 +553,7 @@ function attach(node) {
       if(Array.isArray(records))for(const item of records)addResult(item);
     },
     destroy(){
+      nameDialog?.close();
       if(poll)clearInterval(poll);
       if(statusRefreshTimer)clearTimeout(statusRefreshTimer);
       api.removeEventListener?.("status",nativeQueueChanged);

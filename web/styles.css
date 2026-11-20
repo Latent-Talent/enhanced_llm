@@ -237,16 +237,60 @@
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
-.eml-rename[hidden] { display: none; }
-.eml-rename input {
-  flex: 1 1 0;
-  min-width: 0;
-  background: #24282e;
-  border: 1px solid #515861;
-  border-radius: 6px;
-  min-height: 30px;
-  padding: 4px 8px;
+/* Save-name popup: document-level modal, independent of the node canvas. */
+.eml-name-dialog {
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border, #515861);
+  border-radius: 12px;
+  color: var(--foreground, #f0f0f3);
+  background: var(--background, #262930);
+  box-shadow: 0 22px 72px rgba(0,0,0,.5);
+  font: 13px/1.45 system-ui, -apple-system, sans-serif;
 }
+.eml-name-dialog::backdrop { background: rgba(0,0,0,.68); }
+.eml-name-form { padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.eml-name-form h2 { margin: 0; font: 650 17px/1.4 system-ui, sans-serif; color: inherit; }
+.eml-name-description { margin: 0; font-size: 12px; color: var(--muted-foreground, #b7bdc6); }
+.eml-name-label { display: flex; flex-direction: column; gap: 7px; font-weight: 600; }
+.eml-name-label input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--border, #646b76);
+  border-radius: 7px;
+  background: var(--secondary, #343941);
+  color: var(--foreground, #fff);
+  font: 13px system-ui, sans-serif;
+}
+.eml-name-label input:focus-visible,
+.eml-name-actions button:focus-visible { outline: 2px solid var(--ring, #8fb7fa); outline-offset: 2px; }
+.eml-name-label input[aria-invalid="true"] { border-color: var(--destructive, #db6c6c); }
+.eml-name-error { margin: 0; color: #f59e9e; font-size: 12px; }
+.eml-name-error[hidden] { display: none; }
+.eml-name-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 3px; }
+.eml-name-actions button {
+  min-height: 36px;
+  min-width: 82px;
+  border: 1px solid var(--border, #515861);
+  border-radius: 7px;
+  padding: 7px 13px;
+  background: var(--secondary, #343941);
+  color: var(--foreground, #fff);
+  cursor: pointer;
+  font: 600 12px system-ui, sans-serif;
+}
+.eml-name-actions button.eml-name-save {
+  border-color: var(--primary, #378c58);
+  background: var(--primary, #378c58);
+  color: var(--primary-foreground, #fff);
+}
+.eml-name-actions button:disabled { opacity: .5; cursor: default; }
+.eml-name-actions button:hover:not(:disabled) { filter: brightness(1.12); }
 @media (prefers-reduced-motion: reduce) {
   .eml-switch-track, .eml-switch-track::before { transition: none; }
 }
